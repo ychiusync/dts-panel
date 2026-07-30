@@ -86,6 +86,8 @@ func (s *Server) RegisterRoutes() *gin.Engine {
 	r.POST("/install/steamcmd", s.handleInstallSteamCMD)
 	r.POST("/install/game", s.handleInstallGame)
 	r.POST("/install/box", s.handleInstallBox)
+	r.POST("/install/cdn", s.handleInstallCDN)
+	r.DELETE("/install/cdn", s.handleRemoveCDN)
 
 	api := r.Group("/api")
 	{
@@ -335,6 +337,24 @@ func (s *Server) handleInstallBox(c *gin.Context) {
 	c.Redirect(http.StatusFound, "/install?msg=✓ Box86 + Box64 安装完成")
 }
 
+// handleInstallCDN 添加 Steam CDN hosts 映射
+func (s *Server) handleInstallCDN(c *gin.Context) {
+	if err := install.AddSteamCDNHosts(); err != nil {
+		c.Redirect(http.StatusFound, "/install?msg=✗ "+err.Error())
+		return
+	}
+	c.Redirect(http.StatusFound, "/install?msg=✓ Steam CDN hosts 添加完成")
+}
+
+// handleRemoveCDN 移除 Steam CDN hosts 映射
+func (s *Server) handleRemoveCDN(c *gin.Context) {
+	if err := install.RemoveSteamCDNHosts(); err != nil {
+		c.Redirect(http.StatusFound, "/install?msg=✗ "+err.Error())
+		return
+	}
+	c.Redirect(http.StatusFound, "/install?msg=✓ Steam CDN hosts 已移除")
+}
+
 // ===== API Handlers =====
 
 func (s *Server) apiSystemStatus(c *gin.Context) {
@@ -349,6 +369,7 @@ func (s *Server) apiSystemStatus(c *gin.Context) {
 		"data_dir":  s.cfg.DataDir, "game_dir": s.cfg.GameInstallDir,
 		"in_progress": installInProgress,
 		"logs":        installLog.Lines(),
+		"cdn_hosts":   install.CheckSteamCDNHosts(),
 	})
 }
 

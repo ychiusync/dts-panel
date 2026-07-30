@@ -121,3 +121,98 @@ func (s *SystemDepChecker) installPackages(pm *PackageManager, missing []string)
 	}
 	return nil
 }
+
+// ============================================================
+//  Steam CDN hosts 加速（国内网络优化）
+// ============================================================
+
+var steamCDNHosts = []struct {
+	IP      string
+	Domain  string
+}{
+	{"103.46.209.92", "steamcontent-dal-01.cdn.steampipe.steamcontent.com"},
+	{"103.46.209.92", "steamcontent-atl-01.cdn.steampipe.steamcontent.com"},
+	{"103.46.209.92", "steamcontent-fra-01.cdn.steampipe.steamcontent.com"},
+	{"103.46.209.92", "steamcontent-ams-01.cdn.steampipe.steamcontent.com"},
+	{"103.46.209.92", "steamcontent-sin-01.cdn.steampipe.steamcontent.com"},
+	{"103.46.209.92", "steamcontent-hkg-01.cdn.steampipe.steamcontent.com"},
+}
+
+const hostsPath = "/etc/hosts"
+
+// AddSteamCDNHosts 将 Steam CDN 节点加入 /etc/hosts 加速下载
+func AddSteamCDNHosts() error {
+	hosts, err := os.ReadFile(hostsPath)
+	if err != nil {
+		return fmt.Errorf("读取 %s 失败: %w", hostsPath, err)
+	}
+	hostsContent := string(hosts)
+
+	// 检查是否已经存在
+	for _, entry := range steamCDNHosts {
+		if strings.Contains(hostsContent, entry.Domain) {
+			log.Println("[install] Steam CDN hosts 已存在，无需重复添加")
+			return nil
+		}
+	}
+
+	// 追加到 hosts 文件
+	lines := make([]string, 0)
+	for _, entry := range steamCDNHosts {
+		lines = append(lines, entry.IP+"\t"+entry.Domain)
+	}
+
+	newContent := "\n# Steam CDN (added by dts-panel)\n" + strings.Join(lines, "\n") + "\n"
+
+	// 用 sudo sh 写入
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("echo '%s' >> %s", strings.ReplaceAll(newContent, "'", "'\\''"), hostsPath))
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	// 密码注入
+	if pwd := os.Getenv("DTS_SUDO_PASSWORD"); pwd != "" {
+		cmd.Stdin = strings.NewReader(pwd + "\n")
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	log.Println("[install] 正在添加 Steam CDN hosts 映射...")
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("添加 hosts 失败: %w", err)
+	}
+
+	log.Println("[install] ✓ Steam CDN hosts 添加完成")
+	return nil
+}
+
+// RemoveSteamCDNHosts 移除 Steam CDN hosts 映射
+func RemoveSteamCDNHosts() error {
+	_, err := os.ReadFile(hostsPath)
+	if err != nil {
+		return fmt.Errorf("读取 %s 失败: %w", hostsPath, err)
+	}
+
+	// 用 awk 过滤掉我们的条目
+	script := `awk '/# Steam CDN/ || /steamcontent.*cdn.steampipe.steamcontent.com/ {next} {print}'`
+	cmd := exec.Command("bash", "-c", fmt.Sprintf("%s %s > /tmp/hosts.tmp && mv /tmp/hosts.tmp %s", script, hostsPath, hostsPath))
+	cmd.Env = append(os.Environ(), "DEBIAN_FRONTEND=noninteractive")
+	if pwd := os.Getenv("DTS_SUDO_PASSWORD"); pwd != "" {
+		cmd.Stdin = strings.NewReader(pwd + "\n")
+	}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
+	if err := cmd.Run(); err != nil {
+		return fmt.Errorf("移除 hosts 失败: %w", err)
+	}
+
+	log.Println("[install] ✓ Steam CDN hosts 已移除")
+	return nil
+}
+
+// CheckSteamCDNHosts 检查 Steam CDN hosts 是否存在
+func CheckSteamCDNHosts() bool {
+	hostsData, err := os.ReadFile(hostsPath)
+	if err != nil {
+		return false
+	}
+	return strings.Contains(string(hostsData), "# Steam CDN (added by dts-panel)")
+}

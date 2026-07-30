@@ -49,6 +49,21 @@
     <pre id="install-log" class="terminal-output">等待安装操作...</pre>
   </div>
 
+  <div class="step-card" id="cdn-card">
+    <h2>⚡ Steam CDN 加速</h2>
+    <p>国内网络下载 Steam 内容较慢，添加 CDN hosts 映射可提速。</p>
+    <div id="cdn-status" class="dim">检查中...</div>
+    <div id="cdn-actions">
+      <form method="POST" action="/install/cdn" id="cdn-add-form">
+        <button class="btn btn-primary" type="submit">添加 CDN 映射</button>
+      </form>
+      <form method="POST" action="/install/cdn-remove" id="cdn-remove-form" style="display:none">
+        <button class="btn" type="submit" onclick="return confirm('确认移除 Steam CDN hosts 映射？')">移除 CDN 映射</button>
+      </form>
+    </div>
+    <pre id="cdn-entries" class="terminal-output" style="height:auto;margin-top:8px;display:none"></pre>
+  </div>
+
   <div class="notice-box">
     <p>📋 安装说明</p>
     <ul>
@@ -118,7 +133,37 @@ async function checkStatus() {
   }
 }
 
-window.addEventListener('DOMContentLoaded', checkStatus);
+// CDN 状态检测
+async function checkCDN() {
+  try {
+    const d = await (await fetch('/api/system/status')).json();
+    const statusEl = document.getElementById('cdn-status');
+    const addForm = document.getElementById('cdn-add-form');
+    const removeForm = document.getElementById('cdn-remove-form');
+    const entriesEl = document.getElementById('cdn-entries');
+    if (d.cdn_hosts) {
+      statusEl.textContent = '✓ Steam CDN hosts 已添加';
+      statusEl.className = 'status-ok';
+      addForm.style.display = 'none';
+      removeForm.style.display = '';
+      entriesEl.style.display = '';
+      entriesEl.textContent = "steamcontent-dal-01.cdn.steampipe.steamcontent.com → 103.46.209.92\nsteamcontent-atl-01.cdn.steampipe.steamcontent.com → 103.46.209.92\nsteamcontent-fra-01.cdn.steampipe.steamcontent.com → 103.46.209.92\nsteamcontent-sin-01.cdn.steampipe.steamcontent.com → 103.46.209.92";
+    } else {
+      statusEl.textContent = '✗ Steam CDN hosts 未添加';
+      statusEl.className = 'status-missing';
+      addForm.style.display = '';
+      removeForm.style.display = 'none';
+      entriesEl.style.display = 'none';
+    }
+  } catch (e) {
+    document.getElementById('cdn-status').textContent = '加载失败';
+  }
+}
+
+window.addEventListener('DOMContentLoaded', function() {
+  checkStatus();
+  checkCDN();
+});
 </script>
 <style>
 .terminal-output {
@@ -135,5 +180,8 @@ window.addEventListener('DOMContentLoaded', checkStatus);
   white-space: pre-wrap;
   word-break: break-all;
 }
+#cdn-actions { display: flex; gap: 8px; margin: 8px 0; }
+#cdn-status { font-weight: bold; }
+#cdn-entries { font-size: 11px; color: #6a9955; }
 </style>
 </body></html>
