@@ -1,12 +1,14 @@
 package api
 
 import (
+"fmt"
 	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
+	"time"
 	"text/template"
 
 	"github.com/gin-gonic/gin"
@@ -39,6 +41,12 @@ type Server struct {
 	assetsDir   string
 	templateDir string
 }
+
+// 全局安装状态
+var installLog = &install.InstallLog{}
+var installInProgress = false
+
+
 
 func NewServer(cfg *config.Config) *Server {
 	return &Server{
@@ -77,6 +85,7 @@ func (s *Server) RegisterRoutes() *gin.Engine {
 	r.POST("/mods/action", s.handleModAction)
 	r.POST("/install/steamcmd", s.handleInstallSteamCMD)
 	r.POST("/install/game", s.handleInstallGame)
+	r.POST("/install/box", s.handleInstallBox)
 
 	api := r.Group("/api")
 	{
@@ -84,6 +93,7 @@ func (s *Server) RegisterRoutes() *gin.Engine {
 		api.GET("/instances", s.apiListInstances)
 		api.GET("/instances/:id/logs", s.apiInstanceLogs)
 		api.GET("/mods", s.apiListMods)
+		api.GET("/install/stream", s.apiInstallStream)
 	}
 	return r
 }
@@ -295,11 +305,34 @@ func (s *Server) handleInstallSteamCMD(c *gin.Context) {
 }
 
 func (s *Server) handleInstallGame(c *gin.Context) {
-	if err := s.installer.InstallDSTServer(); err != nil {
+	if installInProgress {
+		c.Redirect(http.StatusFound, "/install?msg=安装正在进行中，请稍候...")
+		return
+	}
+	installLog = &install.InstallLog{}
+	installInProgress = true
+	go func() {
+		defer func() { installInProgress = false }()
+		err := s.installer.InstallDSTServer()
+		if err != nil {
+			installLog.Write("[install] 安装失败: " + err.Error())
+		}
+	}()
+	c.Redirect(http.StatusFound, "/install")
+}
+
+// handleInstallBox 通过面板安装 Box86 + Box64（仅 ARM64 需要）
+func (s *Server) handleInstallBox(c *gin.Context) {
+	if runtime.GOARCH != "arm64" {
+		installLog = &install.InstallLog{}
+	c.Redirect(http.StatusFound, "/install?msg=✗ Box86/Box64 仅 ARM64 架构需要")
+		return
+	}
+	if err := install.InstallBox86And64(); err != nil {
 		c.Redirect(http.StatusFound, "/install?msg=✗ "+err.Error())
 		return
 	}
-	c.Redirect(http.StatusFound, "/install?msg=✓ DST Dedicated Server 安装完成")
+	c.Redirect(http.StatusFound, "/install?msg=✓ Box86 + Box64 安装完成")
 }
 
 // ===== API Handlers =====
@@ -309,10 +342,65 @@ func (s *Server) apiSystemStatus(c *gin.Context) {
 	Ok(c, "ok", map[string]interface{}{
 		"os": info.OS, "arch": info.Arch, "cpu": info.CPU,
 		"cpu_count": info.CPUCount, "is_arm64": info.Arch == "arm64",
-		"steamcmd": fileExists(s.cfg.SteamCMDPath),
-		"game":     fileExists(filepath.Join(s.cfg.GameInstallDir, "bin", "linux64", "dedicated_server")),
-		"data_dir": s.cfg.DataDir, "game_dir": s.cfg.GameInstallDir,
+		"steamcmd":  fileExists(s.cfg.SteamCMDPath),
+		"game":      fileExists(filepath.Join(s.cfg.GameInstallDir, "bin", "linux64", "dedicated_server")),
+		"box86":     cmdExists("box86"),
+		"box64":     cmdExists("box64"),
+		"data_dir":  s.cfg.DataDir, "game_dir": s.cfg.GameInstallDir,
+		"in_progress": installInProgress,
+		"logs":        installLog.Lines(),
 	})
+}
+
+// apiInstallStream SSE 实时日志流
+func (s *Server) apiInstallStream(c *gin.Context) {
+	c.Writer.Header().Set("Content-Type", "text/event-stream")
+	c.Writer.Header().Set("Cache-Control", "no-cache")
+	c.Writer.Header().Set("Connection", "keep-alive")
+	c.Writer.Flush()
+
+	errChan := make(chan error, 1)
+
+	// 后台执行安装
+	go func() {
+		installLog = &install.InstallLog{}
+		err := s.installer.InstallDSTServer()
+		installLog.Write(fmt.Sprintf("[install] 结果: %v", err))
+		errChan <- err
+		c.Writer.Flush()
+	}()
+
+	// SSE 推送
+	ticker := time.NewTicker(500 * time.Millisecond)
+	defer ticker.Stop()
+	lastCount := 0
+
+	for {
+		select {
+		case err := <-errChan:
+			lastLines := installLog.Lines()
+			for i := lastCount; i < len(lastLines); i++ {
+				c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", lastLines[i]))
+				c.Writer.Flush()
+			}
+			lastCount = len(lastLines)
+			// 发送结束标记
+			status := "ok"
+			if err != nil {
+				status = "error"
+			}
+			c.Writer.WriteString(fmt.Sprintf("event: done\ndata: %s\n\n", status))
+			c.Writer.Flush()
+			return
+		case <-ticker.C:
+			lines := installLog.Lines()
+			for i := lastCount; i < len(lines); i++ {
+				c.Writer.WriteString(fmt.Sprintf("data: %s\n\n", lines[i]))
+				c.Writer.Flush()
+			}
+			lastCount = len(lines)
+		}
+	}
 }
 
 func (s *Server) apiListInstances(c *gin.Context) {
@@ -365,5 +453,7 @@ func (s *Server) collectSystemInfo() sysInfo {
 }
 
 func fileExists(p string) bool { _, err := os.Stat(p); return err == nil }
+
+func cmdExists(name string) bool { _, err := exec.LookPath(name); return err == nil }
 func mustInt(s string) int { v, _ := strconv.Atoi(s); return v }
 func mustIntOr(s string, defaultVal int) int { v, _ := strconv.Atoi(s); if v == 0 { return defaultVal }; return v }

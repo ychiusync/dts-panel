@@ -29,41 +29,111 @@
 
   <div class="step-card">
     <h2>步骤 2: 安装 DST Dedicated Server</h2>
-    <p>通过 SteamCMD 下载 Don't Starve Together (AppID: 108730)，约 2GB，需 5-10 分钟。</p>
-    <form method="POST" action="/install/game">
-      <button class="btn btn-primary" type="submit" onclick="return confirm('确认下载 DST Dedicated Server？约 2GB，需要 5-10 分钟。')">安装 DST Server</button>
+    <p>通过 SteamCMD 下载 Don't Starve Together (AppID: 108730)，约 2GB，需 5-15 分钟。</p>
+    <p class="dim">ARM64 架构会自动安装 Box64，无需手动操作。</p>
+    <form id="install-form" method="POST" action="/install/game">
+      <button class="btn btn-primary" type="submit" onclick="startWatching(); return confirm('确认下载 DST Dedicated Server？约 2GB，需要 5-15 分钟。');">安装 DST Server</button>
     </form>
   </div>
 
   <div class="step-card">
     <h2>安装状态</h2>
     <div class="status-grid" id="install-status">
-      <p class="dim">点击刷新</p>
+      <p class="dim">加载中...</p>
     </div>
     <button class="btn" onclick="checkStatus()">刷新状态</button>
+  </div>
+
+  <div class="step-card">
+    <h2>实时日志</h2>
+    <pre id="install-log" class="terminal-output">等待安装操作...</pre>
   </div>
 
   <div class="notice-box">
     <p>📋 安装说明</p>
     <ul>
       <li>SteamCMD 需要网络连接才能从 Steam 下载</li>
+      <li>ARM64 架构自动安装 Box64 来运行 SteamCMD</li>
+      <li>安装过程较长（5-15 分钟），请等待完成</li>
       <li>安装完成后才能在「实例」中启动游戏服务器</li>
-      <li>游戏目录: <code>/home/yue/dst-server</code></li>
+      <li>游戏目录: <code>{{.GameDir}}</code></li>
     </ul>
   </div>
 </main>
 <script>
+let watchTimer = null;
+let lastLogCount = 0;
+
+function startWatching() {
+  lastLogCount = 0;
+  document.getElementById('install-log').textContent = '[等待安装...]';
+  if (watchTimer) clearInterval(watchTimer);
+  watchTimer = setInterval(function() {
+    fetch('/api/system/status')
+      .then(function(r) { return r.json(); })
+      .then(function(d) {
+        if (d.logs && d.logs.length > 0) {
+          const logEl = document.getElementById('install-log');
+          if (d.logs.length > lastLogCount) {
+            const newLines = d.logs.slice(lastLogCount);
+            logEl.textContent += newLines.join('\n') + '\n';
+            logEl.scrollTop = logEl.scrollHeight;
+            lastLogCount = d.logs.length;
+          }
+          if (d.logs[d.logs.length - 1] && (d.logs[d.logs.length - 1].includes('完成') || d.logs[d.logs.length - 1].includes('失败'))) {
+            clearInterval(watchTimer);
+            watchTimer = null;
+          }
+        }
+        // 同时更新状态
+        const parts = [];
+        parts.push('<span class="status-'+(d.steamcmd?'ok':'missing')+'">'+(d.steamcmd?'✓':'✗')+' SteamCMD</span>');
+        parts.push('<span class="status-'+(d.game?'ok':'missing')+'">'+(d.game?'✓':'✗')+' DST Dedicated Server</span>');
+        if (d.is_arm64) {
+          parts.push('<span class="status-'+(d.box86?'ok':'missing')+'">'+(d.box86?'✓':'✗')+' Box86</span>');
+          parts.push('<span class="status-'+(d.box64?'ok':'missing')+'">'+(d.box64?'✓':'✗')+' Box64</span>');
+        }
+        document.getElementById('install-status').innerHTML = parts.join('  ');
+      })
+      .catch(function() {});
+  }, 1000);
+}
+
 async function checkStatus() {
   try {
     const d = await (await fetch('/api/system/status')).json();
-    document.getElementById('install-status').innerHTML = `
-      <span class="status-${d.steamcmd ? 'ok' : 'missing'}">${d.steamcmd ? '✓' : '✗'} SteamCMD</span>
-      <span class="status-${d.game ? 'ok' : 'missing'}">${d.game ? '✓' : '✗'} DST Dedicated Server</span>
-    `;
+    const parts = [];
+    parts.push('<span class="status-'+(d.steamcmd?'ok':'missing')+'">'+(d.steamcmd?'✓':'✗')+' SteamCMD</span>');
+    parts.push('<span class="status-'+(d.game?'ok':'missing')+'">'+(d.game?'✓':'✗')+' DST Dedicated Server</span>');
+    if (d.is_arm64) {
+      parts.push('<span class="status-'+(d.box86?'ok':'missing')+'">'+(d.box86?'✓':'✗')+' Box86</span>');
+      parts.push('<span class="status-'+(d.box64?'ok':'missing')+'">'+(d.box64?'✓':'✗')+' Box64</span>');
+    }
+    document.getElementById('install-status').innerHTML = parts.join('  ');
+    if (d.logs && d.logs.length > 0) {
+      document.getElementById('install-log').textContent = d.logs.join('\n');
+    }
   } catch (e) {
     document.getElementById('install-status').innerHTML = '<span class="dim">加载失败</span>';
   }
 }
+
 window.addEventListener('DOMContentLoaded', checkStatus);
 </script>
+<style>
+.terminal-output {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  height: 350px;
+  overflow-y: auto;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>
 </body></html>
