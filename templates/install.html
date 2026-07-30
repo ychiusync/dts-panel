@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css"></head>
+<body>
+<nav class="navbar">
+  <div class="nav-brand">🌲 DTS Panel</div>
+  <div class="nav-links">
+    <a href="/dashboard" class="{{pageActive .PageID "dashboard"}}">面板</a>
+    <a href="/system" class="{{pageActive .PageID "system"}}">系统</a>
+    <a href="/install" class="{{pageActive .PageID "install"}}">安装</a>
+    <a href="/instances" class="{{pageActive .PageID "instances"}}">实例</a>
+    <a href="/rooms" class="{{pageActive .PageID "rooms"}}">房间</a>
+    <a href="/mods" class="{{pageActive .PageID "mods"}}">模组</a>
+  </div>
+</nav>
+<main class="container">
+  {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
+
+  <h1>游戏安装</h1>
+
+  <div class="step-card">
+    <h2>步骤 1: 安装 SteamCMD</h2>
+    <p>SteamCMD 用于从 Steam 下载游戏，支持 ARM64 架构。</p>
+    <form method="POST" action="/install/steamcmd">
+      <button class="btn btn-primary" type="submit">安装 SteamCMD</button>
+    </form>
+  </div>
+
+  <div class="step-card">
+    <h2>步骤 2: 安装 DST Dedicated Server</h2>
+    <p>通过 SteamCMD 下载 Don't Starve Together (AppID: 108730)，约 2GB，需 5-10 分钟。</p>
+    <form method="POST" action="/install/game">
+      <button class="btn btn-primary" type="submit" onclick="return confirm('确认下载 DST Dedicated Server？约 2GB，需要 5-10 分钟。')">安装 DST Server</button>
+    </form>
+  </div>
+
+  <div class="step-card">
+    <h2>安装状态</h2>
+    <div class="status-grid" id="install-status">
+      <p class="dim">点击刷新</p>
+    </div>
+    <button class="btn" onclick="checkStatus()">刷新状态</button>
+  </div>
+
+  <div class="notice-box">
+    <p>📋 安装说明</p>
+    <ul>
+      <li>SteamCMD 需要网络连接才能从 Steam 下载</li>
+      <li>安装完成后才能在「实例」中启动游戏服务器</li>
+      <li>游戏目录: <code>/home/yue/dst-server</code></li>
+    </ul>
+  </div>
+</main>
+<script>
+async function checkStatus() {
+  try {
+    const d = await (await fetch('/api/system/status')).json();
+    document.getElementById('install-status').innerHTML = `
+      <span class="status-${d.steamcmd ? 'ok' : 'missing'}">${d.steamcmd ? '✓' : '✗'} SteamCMD</span>
+      <span class="status-${d.game ? 'ok' : 'missing'}">${d.game ? '✓' : '✗'} DST Dedicated Server</span>
+    `;
+  } catch (e) {
+    document.getElementById('install-status').innerHTML = '<span class="dim">加载失败</span>';
+  }
+}
+window.addEventListener('DOMContentLoaded', checkStatus);
+</script>
+</body></html>
