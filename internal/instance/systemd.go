@@ -6,10 +6,11 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+
+	"github.com/dts-panel/dts-panel/internal/db"
 )
 
-// GenerateSystemdUnit 为实例生成 systemd service 文件
-func (m *Manager) GenerateSystemdUnit(inst *Instance) (string, error) {
+func (m *Manager) GenerateSystemdUnit(inst *db.Instance) (string, error) {
 	binary := filepath.Join(m.gameRoot, "bin", "linux64", "dedicated_server")
 	clusterDir := filepath.Join(m.instanceRoot, inst.Name)
 	serviceName := fmt.Sprintf("dts-%s", inst.Name)
@@ -59,8 +60,7 @@ WantedBy=multi-user.target
 	return content, nil
 }
 
-// EnableSystemd 启用并启动 systemd service
-func (m *Manager) EnableSystemd(inst *Instance) error {
+func (m *Manager) EnableSystemd(inst *db.Instance) error {
 	serviceName := fmt.Sprintf("dts-%s", inst.Name)
 	_ = exec.Command("systemctl", "daemon-reload").Run()
 	_ = exec.Command("systemctl", "enable", serviceName+".service").Run()
@@ -68,8 +68,7 @@ func (m *Manager) EnableSystemd(inst *Instance) error {
 	return nil
 }
 
-// DisableSystemd 禁用 systemd service
-func (m *Manager) DisableSystemd(inst *Instance) error {
+func (m *Manager) DisableSystemd(inst *db.Instance) error {
 	serviceName := fmt.Sprintf("dts-%s", inst.Name)
 	_ = exec.Command("systemctl", "stop", serviceName+".service").Run()
 	_ = exec.Command("systemctl", "disable", serviceName+".service").Run()

@@ -1,7 +1,6 @@
 package api
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"os/exec"
@@ -9,7 +8,6 @@ import (
 	"runtime"
 	"strconv"
 	"text/template"
-	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/dts-panel/dts-panel/internal/config"

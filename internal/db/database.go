@@ -4,7 +4,8 @@ import (
 	"fmt"
 	"os"
 
-	"modernc.org/sqlite"
+	_ "github.com/ncruces/go-sqlite3"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
