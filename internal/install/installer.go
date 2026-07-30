@@ -415,7 +415,7 @@ func (i *SteamCMDInstaller) InstallDSTServer() error {
 		} else {
 			// 新版 box64 (0.3+) 支持执行 steamcmd.sh 脚本
 			steamSh := filepath.Join(steamDir, "steamcmd.sh")
-			selfUpdateCmd := exec.Command(box64Bin, append([]string{steamSh}, "+login", "anonymous", "+quit")...)
+			selfUpdateCmd := exec.Command(box64Bin, steamSh, "+force_install_dir", steamDir, "+login", "anonymous", "+quit")
 			selfUpdateCmd.Dir = steamDir
 			selfUpdateCmd.Env = append(os.Environ(), "HOME="+i.BaseDir)
 			selfUpdateCmd.Stdout = os.Stdout
@@ -441,7 +441,7 @@ func (i *SteamCMDInstaller) InstallDSTServer() error {
 	installArgs := []string{
 		"+force_install_dir", i.GameDir,
 		"+login", "anonymous",
-		"+app_update", "108730", "validate",
+		"+app_update", "343050", "validate",
 		"+quit",
 	}
 	for attempt := 1; attempt <= 2; attempt++ {
@@ -476,7 +476,7 @@ func (i *SteamCMDInstaller) UpdateDSTServer() error {
 	installArgs := []string{
 		"+force_install_dir", i.GameDir,
 		"+login", "anonymous",
-		"+app_update", "108730", "validate",
+		"+app_update", "343050", "validate",
 		"+quit",
 	}
 	cmd := i.buildSteamCMDCommand(installArgs)
