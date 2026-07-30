@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"time"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -444,20 +445,25 @@ func (i *SteamCMDInstaller) InstallDSTServer() error {
 		"+app_update", "343050", "validate",
 		"+quit",
 	}
-	for attempt := 1; attempt <= 2; attempt++ {
-		globalLog.Write(fmt.Sprintf("[install] 第 %d 次尝试下载 DST...", attempt))
+	// SteamCMD 支持断点续传：失败后直接重试即可从断点继续
+	// box64 转译可能因网络抖动或转译错误 segfault，多试几次
+	maxAttempts := 5
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		globalLog.Write(fmt.Sprintf("[install] 第 %d/%d 次尝试下载 DST (断点续传)...", attempt, maxAttempts))
 		cmd := i.buildSteamCMDCommand(installArgs)
 		cmd.Stdout = os.Stdout
 		cmd.Stderr = os.Stderr
 		if err := cmd.Run(); err != nil {
-			globalLog.Write(fmt.Sprintf("[install] 第 %d 次失败: %v", attempt, err))
-			if attempt == 2 {
-				return fmt.Errorf("DST 安装失败")
+			globalLog.Write(fmt.Sprintf("[install] 第 %d 次失败: %v，3 秒后自动重试...", attempt, err))
+			if attempt < maxAttempts {
+				time.Sleep(3 * time.Second)
+				continue
 			}
-		} else {
-			globalLog.Write(fmt.Sprintf("[install] DST 下载完成（第 %d 次）", attempt))
-			break
+			globalLog.Write("[install] 已达最大重试次数，请检查网络后再次点击安装")
+			return fmt.Errorf("DST 安装失败（重试 %d 次均失败）", maxAttempts)
 		}
+		globalLog.Write(fmt.Sprintf("[install] DST 下载完成（第 %d 次）", attempt))
+		break
 	}
 
 	// 清理损坏的 acf
