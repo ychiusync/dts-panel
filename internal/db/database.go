@@ -3,10 +3,10 @@ package db
 import (
 	"fmt"
 	"os"
+	"time"
 
-	_ "github.com/ncruces/go-sqlite3"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var DB *gorm.DB
@@ -17,18 +17,19 @@ func Init(dataDir string) error {
 		return err
 	}
 
-	dsn := fmt.Sprintf("%s/dts.db?cache=shared&_pragma=busy_timeout(5000)", dataDir)
+	dsn := fmt.Sprintf("%s/dts.db", dataDir)
 	var err error
-	DB, err = gorm.Open(sqlite.Open(dsn), &gorm.Config{})
+	DB, err = gorm.Open(Open(dsn), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
-		return err
+		return fmt.Errorf("gorm open failed: %w", err)
 	}
 
 	sqlDB, _ := DB.DB()
 	sqlDB.SetMaxOpenConns(1)
 	sqlDB.SetMaxIdleConns(1)
-	DB.Exec("PRAGMA journal_mode=WAL")
-	DB.Exec("PRAGMA synchronous=NORMAL")
+	sqlDB.SetConnMaxLifetime(time.Hour)
 
 	return nil
 }
