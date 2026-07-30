@@ -2,32 +2,32 @@ package api
 
 import (
 	"html/template"
-	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strconv"
+	"sync"
+	"time"
 )
 
-// PageData 页面渲染上下文
-type PageData struct {
-	Title     string
-	PageID    string
-	Instances interface{}
-	Rooms     interface{}
-	Mods      interface{}
-	FlashMsg  string
-}
+var (
+	globalTmpl *template.Template
+	tmplLock   sync.RWMutex
+)
 
 func countRunning(instances interface{}) int {
 	rv := reflect.ValueOf(instances)
-	if rv.Kind() != reflect.Slice { return 0 }
+	if rv.Kind() != reflect.Slice {
+		return 0
+	}
 	count := 0
 	for i := 0; i < rv.Len(); i++ {
 		elem := rv.Index(i)
-		if elem.Kind() == reflect.Ptr { elem = elem.Elem() }
-		if field, ok := elem.Type().FieldByName("Status"); ok {
-			if elem.FieldByIndex(field.Index).String() == "running" {
+		if elem.Kind() == reflect.Ptr {
+			elem = elem.Elem()
+		}
+		if f, ok := elem.Type().FieldByName("Status"); ok {
+			if elem.FieldByIndex(f.Index).String() == "running" {
 				count++
 			}
 		}
@@ -35,42 +35,102 @@ func countRunning(instances interface{}) int {
 	return count
 }
 
-func (s *Server) renderHTML(w io.Writer, tmplName string, data *PageData) {
-	tmpl := template.New(tmplName + ".html")
-	tmpl.Funcs(template.FuncMap{
-		"statusClass": func(status string) string {
-			switch status {
-			case "running":  return "badge-running"
-			case "stopped":  return "badge-stopped"
-			case "starting": return "badge-starting"
-			default:         return "badge-error"
-			}
-		},
-		"pageActive": func(current, target string) string { if current == target { return "active" } else { return "" } },
-		"lenVal": func(v interface{}) int { if v == nil { return 0 } else { return reflect.ValueOf(v).Len() } },
-		"runningCount": func(i interface{}) int { return countRunning(i) },
-		"stoppedCount": func(i interface{}) int { rv := reflect.ValueOf(i); if rv.Kind() != reflect.Slice { return 0 } else { return rv.Len() - countRunning(i) } },
-	})
+func countStopped(instances interface{}) int {
+	rv := reflect.ValueOf(instances)
+	if rv.Kind() != reflect.Slice {
+		return 0
+	}
+	return rv.Len() - countRunning(instances)
+}
 
-	candidates := []string{
-		"templates/" + tmplName + ".html",
-		filepath.Join(".", "templates", tmplName+".html"),
-		filepath.Join(filepath.Dir(os.Args[0]), "templates", tmplName+".html"),
+func lenVal(v interface{}) int {
+	if v == nil {
+		return 0
+	}
+	return reflect.ValueOf(v).Len()
+}
+
+func pageActive(current, target string) string {
+	if current == target {
+		return "active"
+	}
+	return ""
+}
+
+func statusClass(s string) string {
+	switch s {
+	case "running":
+		return "badge-running"
+	case "stopped":
+		return "badge-stopped"
+	case "starting":
+		return "badge-starting"
+	default:
+		return "badge-error"
+	}
+}
+
+func formatTime(t interface{}) string {
+	if tm, ok := t.(time.Time); ok {
+		if tm.IsZero() {
+			return "—"
+		}
+		return tm.Format("2006-01-02 15:04")
+	}
+	return ""
+}
+
+func formatInt(v interface{}) string {
+	if i, ok := v.(int); ok {
+		return strconv.Itoa(i)
+	}
+	if i, ok := v.(int64); ok {
+		return strconv.FormatInt(i, 10)
+	}
+	return ""
+}
+
+func initTemplates(templateDir string) error {
+	funcMap := template.FuncMap{
+		"pageActive":   pageActive,
+		"statusClass":  statusClass,
+		"lenVal":       lenVal,
+		"runningCount": countRunning,
+		"stoppedCount": countStopped,
+		"formatTime":   formatTime,
+		"formatInt":    formatInt,
 	}
 
-	for _, p := range candidates {
-		b, err := os.ReadFile(p)
-		if err != nil { continue }
-		if _, err := tmpl.Parse(string(b)); err == nil { break }
+	pattern := filepath.Join(templateDir, "*.html")
+	files, err := filepath.Glob(pattern)
+	if err != nil || len(files) == 0 {
+		return nil
 	}
 
-	if data.FlashMsg != "" && tmplName == "dashboard" {
-		// dashboard 需要显示 msg
+	var t *template.Template
+	for _, f := range files {
+		if t == nil {
+			t = template.Must(template.New(filepath.Base(f)).Funcs(funcMap).ParseFiles(f))
+		} else {
+			t, _ = t.Funcs(funcMap).ParseFiles(f)
+		}
 	}
 
-	data.PageID = tmplName
-	if err := tmpl.Execute(w, data); err != nil {
-		log.Printf("[template] 执行模板失败 %s: %v", tmplName, err)
-		w.Write([]byte("<h1>模板执行失败</h1><pre>" + err.Error() + "</pre>"))
+	tmplLock.Lock()
+	globalTmpl = t
+	tmplLock.Unlock()
+	return nil
+}
+
+func InitTemplatesFromDir(templateDir string) error {
+	return initTemplates(templateDir)
+}
+
+func (s *Server) loadTemplate(name string) (*template.Template, error) {
+	tmplLock.RLock()
+	defer tmplLock.RUnlock()
+	if globalTmpl == nil {
+		return nil, os.ErrNotExist
 	}
+	return globalTmpl, nil
 }
