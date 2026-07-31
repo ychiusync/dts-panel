@@ -86,7 +86,7 @@ function startWatching() {
   watchTimer = setInterval(function() {
     fetch('/api/system/status')
       .then(function(r) { return r.json(); })
-      .then(function(d) {
+      .then(function(resp) { var d = resp.data; 
         if (d.logs && d.logs.length > 0) {
           const logEl = document.getElementById('install-log');
           if (d.logs.length > lastLogCount) {
@@ -116,7 +116,7 @@ function startWatching() {
 
 async function checkStatus() {
   try {
-    const d = await (await fetch('/api/system/status')).json();
+    const resp = await (await fetch('/api/system/status')).json(); const d = resp.data;
     const parts = [];
     parts.push('<span class="status-'+(d.steamcmd?'ok':'missing')+'">'+(d.steamcmd?'✓':'✗')+' SteamCMD</span>');
     parts.push('<span class="status-'+(d.game?'ok':'missing')+'">'+(d.game?'✓':'✗')+' DST Dedicated Server</span>');
@@ -136,7 +136,7 @@ async function checkStatus() {
 // CDN 状态检测
 async function checkCDN() {
   try {
-    const d = await (await fetch('/api/system/status')).json();
+    const resp = await (await fetch('/api/system/status')).json(); const d = resp.data;
     const statusEl = document.getElementById('cdn-status');
     const addForm = document.getElementById('cdn-add-form');
     const removeForm = document.getElementById('cdn-remove-form');

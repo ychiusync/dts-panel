@@ -52,20 +52,20 @@
 <script>
 (async () => {
   try {
-    const data = await (await fetch('/api/system/status')).json();
-    document.getElementById('sys-arch').textContent = data.arch + (data.is_arm64 ? ' (ARM64 ✓)' : '');
-    document.getElementById('sys-cpu').textContent = 'CPU: ' + (data.cpu || 'Unknown') + ' | Cores: ' + data.cpu_count;
-    document.getElementById('game-status').textContent = data.game ? '✓ 已安装' : '✗ 未安装';
-    document.getElementById('game-status').style.color = data.game ? 'var(--accent)' : 'var(--danger)';
-    document.getElementById('steamcmd-status').textContent = data.steamcmd ? '✓ 已安装' : '✗ 未安装';
-    document.getElementById('steamcmd-status').style.color = data.steamcmd ? 'var(--accent)' : 'var(--danger)';
+    const d = (await (await fetch('/api/system/status')).json()).data;
+    document.getElementById('sys-arch').textContent = d.arch + (d.is_arm64 ? ' (ARM64 ✓)' : '');
+    document.getElementById('sys-cpu').textContent = 'CPU: ' + (d.cpu || 'Unknown') + ' | Cores: ' + d.cpu_count;
+    document.getElementById('game-status').textContent = d.game ? '✓ 已安装' : '✗ 未安装';
+    document.getElementById('game-status').style.color = d.game ? 'var(--accent)' : 'var(--danger)';
+    document.getElementById('steamcmd-status').textContent = d.steamcmd ? '✓ 已安装' : '✗ 未安装';
+    document.getElementById('steamcmd-status').style.color = d.steamcmd ? 'var(--accent)' : 'var(--danger)';
     document.querySelector('#sys-table tbody').innerHTML = `
-      <tr><td>操作系统</td><td>${data.os}</td></tr>
-      <tr><td>架构</td><td>${data.arch}</td></tr>
-      <tr><td>CPU</td><td>${data.cpu}</td></tr>
-      <tr><td>核心数</td><td>${data.cpu_count}</td></tr>
-      <tr><td>数据目录</td><td>${data.data_dir}</td></tr>
-      <tr><td>游戏目录</td><td>${data.game_dir}</td></tr>
+      <tr><td>操作系统</td><td>${d.os}</td></tr>
+      <tr><td>架构</td><td>${d.arch}</td></tr>
+      <tr><td>CPU</td><td>${d.cpu}</td></tr>
+      <tr><td>核心数</td><td>${d.cpu_count}</td></tr>
+      <tr><td>数据目录</td><td>${d.data_dir}</td></tr>
+      <tr><td>游戏目录</td><td>${d.game_dir}</td></tr>
     `;
   } catch (e) {
     document.getElementById('sys-arch').textContent = '加载失败: ' + e.message;
