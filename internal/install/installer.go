@@ -469,12 +469,18 @@ func (i *SteamCMDInstaller) InstallDSTServer() error {
 	// 清理损坏的 acf
 	_ = os.Remove(filepath.Join(i.GameDir, "steamapps", "appmanifest_108730.acf"))
 
-	bootPath := filepath.Join(i.GameDir, "bin", "linux64", "dedicated_server")
-	if _, err := os.Stat(bootPath); err == nil {
-		globalLog.Write("[install] ✓ DST Dedicated Server 安装完成")
-		return nil
+	dstBins := []string{
+		filepath.Join(i.GameDir, "bin", "linux64", "dedicated_server"),
+		filepath.Join(i.GameDir, "bin64", "dontstarve_dedicated_server_nullrenderer_x64"),
+		filepath.Join(i.GameDir, "bin", "dontstarve_dedicated_server_nullrenderer"),
 	}
-	return fmt.Errorf("DST 安装完成但文件不完整")
+	for _, bp := range dstBins {
+		if _, err := os.Stat(bp); err == nil {
+			globalLog.Write(fmt.Sprintf("[install] ✓ DST 安装完成 (%s)", bp))
+			return nil
+		}
+	}
+	return fmt.Errorf("DST 安装完成但未找到服务端文件")
 }
 
 func (i *SteamCMDInstaller) UpdateDSTServer() error {
@@ -492,10 +498,17 @@ func (i *SteamCMDInstaller) UpdateDSTServer() error {
 }
 
 func (i *SteamCMDInstaller) Verify() error {
-	bootPath := filepath.Join(i.GameDir, "bin", "linux64", "dedicated_server")
-	if _, err := os.Stat(bootPath); err != nil {
-		return fmt.Errorf("DST 未安装: %w", err)
+	dstBins := []string{
+		filepath.Join(i.GameDir, "bin", "linux64", "dedicated_server"),
+		filepath.Join(i.GameDir, "bin64", "dontstarve_dedicated_server_nullrenderer_x64"),
+		filepath.Join(i.GameDir, "bin", "dontstarve_dedicated_server_nullrenderer"),
 	}
-	globalLog.Write("[install] ✓ 验证通过")
+	for _, bp := range dstBins {
+		if _, err := os.Stat(bp); err == nil {
+			globalLog.Write(fmt.Sprintf("[install] ✓ 验证通过 (%s)", bp))
+			return nil
+		}
+	}
+	return fmt.Errorf("DST 未安装")
 	return nil
 }
