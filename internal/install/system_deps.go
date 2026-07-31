@@ -214,5 +214,5 @@ func CheckSteamCDNHosts() bool {
 	if err != nil {
 		return false
 	}
-	return strings.Contains(string(hostsData), "# Steam CDN (added by dts-panel)")
+	return strings.Contains(string(hostsData), "steamcontent")
 }
