@@ -4,7 +4,8 @@
 <title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css">
 <script src="/static/js/logs_v7.js?v=8"></script>
 </head>
-<body>
+<body><script>window._clusterId = {{.Cluster.ID}};</script>
+
 <nav class="navbar">
   <div class="nav-brand">🌲 DTS Panel</div>
   <div class="nav-links">
@@ -97,21 +98,45 @@
     </form>
   </div>
 
-  {{/* ===== 世界参数设置 ===== */}}
-  {{range .Worlds}}
-  <div class="step-card">
-    <h2>{{if .IsMaster}}🌳 地面 (Master){{else}}🕳️ 洞穴 (Cave){{end}} — 世界参数</h2>
-    <p class="dim">leveldataoverride.lua — 控制季节、昼夜、资源、怪物等</p>
-    <form method="POST" action="/clusters/worlds">
-      <input type="hidden" name="cluster_id" value="{{$.Cluster.ID}}">
-      <input type="hidden" name="world_id" value="{{.ID}}">
-      <input type="hidden" name="action" value="save_level">
-      <textarea name="level_data" rows="14" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.8rem;padding:12px;resize:vertical">{{.LevelData}}</textarea>
-      <div style="display:flex;gap:10px;margin-top:8px">
-        <button class="btn btn-primary" type="submit">保存世界参数</button>
-        <button class="btn" type="button" onclick="loadDefault('{{.Name}}')">恢复默认</button>
+  {{/* ===== 服务器直连 ===== */}}
+  <div class="step-card" id="connect-card">
+    <h2>🔌 服务器直连</h2>
+    <p class="dim">复制链接到本地 DST 客户端「加入服务器」即可直连</p>
+    <div id="connect-info" class="connect-info-box">
+      <span class="connect-label">🌐 地址</span>
+      <span class="connect-value" id="connect-ip">加载中...</span>
+    </div>
+    <div class="connect-url-box">
+      <span class="connect-label">🔗 DST 直连链接</span>
+      <div class="connect-url-row">
+        <input type="text" id="dst-url" readonly value="加载中..."
+               style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.85rem;padding:8px 12px">
+        <button class="btn btn-primary" id="btn-copy-dest" onclick="copyDstURL()">📋 复制</button>
       </div>
-    </form>
+    </div>
+    <div class="connect-join-row">
+      <a href="" id="btn-join-dest" target="_blank" class="btn btn-success" style="text-decoration:none">
+        🎮 点击加入（打开 Steam）
+      </a>
+      <span class="dim" id="connect-status"></span>
+    </div>
+  </div>
+
+  {{/* ===== 世界参数可视化设置 ===== */}}
+  {{range .Worlds}}
+  <div class="step-card world-params-card" data-world-id="{{.ID}}">
+    <h2 style="display:flex;justify-content:space-between;align-items:center">
+      <span>{{if .IsMaster}}🌳 地面 (Master){{else}}🕳️ 洞穴 (Cave){{end}} — 世界参数</span>
+      <span class="dim">world_id={{.ID}}</span>
+    </h2>
+    <p class="dim" id="wp-status-{{.ID}}" style="margin:4px 0 0 0">加载参数中...</p>
+    <div id="wp-container-{{.ID}}">
+      <div class="wp-loader">加载中...</div>
+    </div>
+    <div class="form-actions" style="margin-top:12px;display:flex;gap:10px">
+      <button class="btn btn-primary" onclick="saveWorldParams({{.ID}})">💾 保存世界参数</button>
+      <button class="btn" onclick="resetWorldParams({{.ID}},'{{.Name}}')">↩ 恢复默认</button>
+    </div>
   </div>
   {{end}}
 
@@ -330,4 +355,64 @@ textarea { resize: vertical; }
   .log-split { grid-template-columns: 1fr; }
 }
 </style>
+
+<style>
+/* ===== 服务器直连 ===== */
+.connect-info-box {
+  display:flex; align-items:center; gap:10px; padding:10px 14px;
+  background:var(--surface2); border:1px solid var(--border); border-radius:var(--radius);
+  margin-bottom:10px;
+}
+.connect-label { font-size:0.85rem; min-width:80px; }
+.connect-value { font-size:0.9rem; font-weight:600; color:var(--info); }
+.connect-url-box { margin-bottom:10px; }
+.connect-url-row { display:flex; gap:8px; margin-top:6px; }
+.connect-join-row { display:flex; align-items:center; gap:12px; margin-top:8px; }
+
+/* ===== 世界参数可视化 ===== */
+.wp-loader { text-align:center; padding:30px; color:var(--text-dim); }
+.wp-category {
+  border:1px solid var(--border); border-radius:var(--radius);
+  margin-bottom:8px; overflow:hidden;
+}
+.wp-cat-header {
+  display:flex; align-items:center; gap:8px; padding:10px 14px;
+  background:var(--surface2); cursor:pointer;
+  user-select:none; transition: background 0.15s;
+}
+.wp-cat-header:hover { background:rgba(255,255,255,0.06); }
+.wp-cat-arrow { font-size:0.8rem; transition: transform 0.2s; }
+.wp-cat-arrow.collapsed { transform: rotate(-90deg); }
+.wp-cat-title { font-size:0.9rem; font-weight:600; }
+.wp-cat-body {
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
+  gap:8px; padding:10px 14px; background:rgba(0,0,0,0.1);
+}
+.wp-cat-body.collapsed { display:none; }
+.wp-param { display:flex; flex-direction:column; gap:4px; }
+.wp-param label { font-size:0.78rem; color:var(--text-dim); }
+.wp-param select, .wp-param input[type="number"] {
+  padding:5px 8px; background:var(--surface2);
+  border:1px solid var(--border); border-radius:4px;
+  color:var(--text); font-size:0.8rem;
+}
+.wp-param select { cursor:pointer; }
+.wp-param input[type="number"] { width:80px; }
+.wp-param .wp-toggle {
+  display:flex; align-items:center; gap:8px;
+  font-size:0.82rem; cursor:pointer;
+}
+.wp-toggle-track {
+  width:36px; height:20px; border-radius:10px; background:#555;
+  position:relative; transition: background 0.2s;
+}
+.wp-toggle-track.on { background:#4a9; }
+.wp-toggle-thumb {
+  width:16px; height:16px; border-radius:50%; background:#fff;
+  position:absolute; top:2px; left:2px; transition: left 0.2s;
+}
+.wp-toggle-track.on .wp-toggle-thumb { left:18px; }
+.wp-toggle-val { font-size:0.75rem; color:var(--text-dim); }
+</style>
+
 </body></html>
