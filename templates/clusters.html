@@ -2,9 +2,9 @@
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css">
-<script src="/static/js/logs_v7.js?v=8"></script>
+<script src="/static/js/logs_v8.js"></script>
 </head>
-<body><script>window._clusterId = {{.Cluster.ID}};</script>
+<body>
 
 <nav class="navbar">
   <div class="nav-brand">🌲 DTS Panel</div>
@@ -98,43 +98,93 @@
     </form>
   </div>
 
+  <script>window._clusterId = {{.Cluster.ID}};</script>
   {{/* ===== 服务器直连 ===== */}}
   <div class="step-card" id="connect-card">
     <h2>🔌 服务器直连</h2>
-    <p class="dim">复制链接到本地 DST 客户端「加入服务器」即可直连</p>
+    <p class="dim" id="connect-desc">有多种方式可以连接服务器</p>
     <div id="connect-info" class="connect-info-box">
       <span class="connect-label">🌐 地址</span>
       <span class="connect-value" id="connect-ip">加载中...</span>
     </div>
-    <div class="connect-url-box">
-      <span class="connect-label">🔗 DST 直连链接</span>
-      <div class="connect-url-row">
-        <input type="text" id="dst-url" readonly value="加载中..."
-               style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.85rem;padding:8px 12px">
-        <button class="btn btn-primary" id="btn-copy-dest" onclick="copyDstURL()">📋 复制</button>
+
+    {{/* 方法1: 游戏控制台 c_connect */}}
+    <div class="connect-method">
+      <div class="connect-method-header">
+        <span class="connect-method-title">1️⃣ 游戏内控制台连接</span>
+        <span class="connect-method-hint">游戏中按 按 <code>~</code> 打开控制台 → 粘贴命令 → 回车</span>
       </div>
+      <div class="connect-code-box">
+        <div id="c-connect-cmd-display" class="connect-code-display">-- 加载中 --</div>
+        <button class="btn btn-sm btn-copy-code copy-btn" data-target="c-connect-cmd-display">📋 复制</button>
+      </div>
+      <p class="connect-code-note">
+        <strong>步骤:</strong> ① 进入游戏世界 → ② 按 <code>~</code>（波浪线）打开控制台 → ③ 粘贴上方命令回车即可加入
+        {{if .Cluster.Password}}<br><strong>有密码:</strong> 命令已自动包含密码，无需额外输入{{end}}
+      </p>
     </div>
-    <div class="connect-join-row">
-      <a href="" id="btn-join-dest" target="_blank" class="btn btn-success" style="text-decoration:none">
-        🎮 点击加入（打开 Steam）
-      </a>
-      <span class="dim" id="connect-status"></span>
+
+    {{/* 方法2: dst:// 链接 + 控制台 dst_url */}}
+    <div class="connect-method">
+      <div class="connect-method-header">
+        <span class="connect-method-title">2️⃣ 控制台 dst_url 连接</span>
+        <span class="connect-method-hint">复制 dst:// 链接 → 按 <code>~</code> 打开控制台 → 输入 c_connect_dst_url 加链接 → 回车</span>
+      </div>
+      <div class="connect-url-row">
+        <span class="connect-code-label">dst:// 链接:</span>
+        <input type="text" id="dst-url" readonly value="-- 加载中 --"
+               style="flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.85rem;padding:8px 12px">
+        <button class="btn btn-sm btn-copy-code copy-btn" data-target="dst-url">📋 复制链接</button>
+      </div>
+      <div class="connect-code-box" style="margin-top:6px">
+        <span class="connect-code-label">控制台命令:</span>
+        <div id="c-connect-dst-url-display" class="connect-code-display">-- 加载中 --</div>
+        <button class="btn btn-sm btn-copy-code copy-btn" data-target="c-connect-dst-url-display">📋 复制</button>
+      </div>
+      <p class="connect-code-note">
+        <strong>步骤:</strong> ① 复制到上方 dst:// 链接 → ② 游戏内按 <code>F1</code> → ③ 输入 <code>c_connect_dst_url</code> 空格 + 粘贴链接 → 回车
+      </p>
+    </div>
+
+    {{/* 方法3: Steam 一键加入 */}}
+    <div class="connect-method">
+      <div class="connect-method-header">
+        <span class="connect-method-title">3️⃣ Steam 本地直连</span>
+        <span class="connect-method-hint">点击按钮自动通过 Steam 协议打开游戏并加入服务器</span>
+      </div>
+      <div class="connect-join-row">
+        <a href="" id="btn-join-dest" target="_blank" class="btn btn-success" style="text-decoration:none">
+          🎮 点击加入（通过 Steam 打开）
+        </a>
+        <span class="dim" id="connect-status"></span>
+      </div>
+      <p class="connect-code-note">
+        <strong>说明:</strong> 需要 Steam 客户端已登录，且已安装《饥荒联机版》。点击后自动调用 <code>steam://connect/</code> 协议启动游戏并加入服务器。
+      </p>
     </div>
   </div>
 
-  {{/* ===== 世界参数可视化设置 ===== */}}
+  {{/* ===== 世界参数可视化设置（双 Tab: 世界规则 / 世界生成）===== */}}
   {{range .Worlds}}
   <div class="step-card world-params-card" data-world-id="{{.ID}}">
     <h2 style="display:flex;justify-content:space-between;align-items:center">
-      <span>{{if .IsMaster}}🌳 地面 (Master){{else}}🕳️ 洞穴 (Cave){{end}} — 世界参数</span>
+      <span>{{if .IsMaster}}🌳 地面 (Master){{else}}🕳️ 洞穴 (Cave){{end}} — 世界设置</span>
       <span class="dim">world_id={{.ID}}</span>
     </h2>
+
+    <div class="wp-tab-bar">
+      <button class="wp-tab-btn active" data-world-id="{{.ID}}" data-tab="rules">📜 世界规则</button>
+      <button class="wp-tab-btn" data-world-id="{{.ID}}" data-tab="gen">🌿 世界生成</button>
+    </div>
+
     <p class="dim" id="wp-status-{{.ID}}" style="margin:4px 0 0 0">加载参数中...</p>
-    <div id="wp-container-{{.ID}}">
+
+    <div id="wp-content-{{.ID}}" class="wp-content">
       <div class="wp-loader">加载中...</div>
     </div>
+
     <div class="form-actions" style="margin-top:12px;display:flex;gap:10px">
-      <button class="btn btn-primary" onclick="saveWorldParams({{.ID}})">💾 保存世界参数</button>
+      <button class="btn btn-primary" id="wp-save-{{.ID}}" onclick="saveWorldParams({{.ID}})">💾 保存</button>
       <button class="btn" onclick="resetWorldParams({{.ID}},'{{.Name}}')">↩ 恢复默认</button>
     </div>
   </div>
@@ -143,10 +193,8 @@
   {{/* ===== 详情页：地面 + 洞穴 左右分栏日志 ===== */}}
   <div class="step-card" id="log-detail-card">
     <div style="display:flex;justify-content:space-between;align-items:center">
-      <h2>📜 游戏日志（地面 + 洞穴）</h2>
-      <div style="display:flex;gap:6px">
-        <span class="dim" id="log-detail-status">连接中...</span>
-      </div>
+      <h2>📜 游戏日志</h2>
+      <span class="dim">地面 &amp; 洞穴</span>
     </div>
     <div class="log-split">
       <div class="log-panel">
@@ -171,7 +219,7 @@
     <ul>
       <li>一个房间 = 一个完整的 DST 服务器集群，默认包含 <strong>地面 (Master)</strong> 和 <strong>洞穴 (Cave)</strong> 两个世界</li>
       <li>每个世界有独立的 worldgen 参数（季节/昼夜/资源/怪物）和模组配置</li>
-      <li>创建房间后可以在详情页面单独编辑地面和洞穴的 worldgen 参数</li>
+      <li>世界规则可在详情页编辑；世界生成参数在创建房间时设定，详情页仅展示</li>
       <li>启动后地面和洞穴会同时运行，玩家通过绚丽之门在地面和洞穴之间传送</li>
     </ul>
   </div>
@@ -256,6 +304,23 @@
       <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;margin:8px 0">
         <input type="checkbox" name="is_offline"> 离线模式（不联网验证）
       </label>
+
+      {{/* ===== 创建时：世界生成参数配置 ===== */}}
+      <h3 style="margin:16px 0 8px 0;font-size:1rem">🌿 世界生成参数</h3>
+      <p class="dim" style="font-size:0.8rem;margin-bottom:8px">创建房间后可在详情页查看，修改后需重新创建世界</p>
+
+      {{/* 地面 世界生成参数 */}}
+      <div class="step-card" style="padding:12px;margin-bottom:8px">
+        <h4 style="margin:0 0 8px 0;font-size:0.9rem">🌳 地面 — 世界生成</h4>
+        <div id="create-ground-gen" class="wp-content"></div>
+      </div>
+
+      {{/* 洞穴 世界生成参数 */}}
+      <div class="step-card" style="padding:12px;margin-bottom:8px">
+        <h4 style="margin:0 0 8px 0;font-size:0.9rem">🕳️ 洞穴 — 世界生成</h4>
+        <div id="create-cave-gen" class="wp-content"></div>
+      </div>
+
       <div class="form-actions">
         <button class="btn btn-primary" type="submit">创建房间</button>
         <button class="btn" type="button" onclick="toggleCreateForm()">取消</button>
@@ -278,8 +343,152 @@
 // 创建表单显示/隐藏
 function toggleCreateForm() {
   var el = document.getElementById('create-form');
-  if (el) el.classList.toggle('hidden');
+  if (el) {
+    el.classList.toggle('hidden');
+    if (!el.classList.contains('hidden')) {
+      renderCreateWorldgenParams();
+    }
+  }
 }
+
+// 创建时世界生成参数缓存
+var _createWorldgenCache = { ground: null, cave: null };
+
+// 渲染创建表单的世界生成参数
+function renderCreateWorldgenParams() {
+  if (_createWorldgenCache.ground && _createWorldgenCache.ground.loaded) return;
+
+  // 加载地面和洞穴的默认世界生成参数
+  loadDefaultWorldgenParams('master', 'create-ground-gen', 'ground');
+  loadDefaultWorldgenParams('cave', 'create-cave-gen', 'cave');
+}
+
+function loadDefaultWorldgenParams(worldType, containerId, cacheKey) {
+  fetch('/api/system/default-worldgen')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.data) return;
+      var sections = d.data;
+      var genSection = null;
+      for (var i = 0; i < sections.length; i++) {
+        if (sections[i].key === 'gen') {
+          genSection = sections[i];
+          break;
+        }
+      }
+      if (!genSection) return;
+
+      _createWorldgenCache[cacheKey] = { loaded: true, sections: genSection.categories };
+
+      var container = document.getElementById(containerId);
+      if (!container) return;
+      container.innerHTML = '';
+
+      genSection.categories.forEach(function(cat) {
+        var catDiv = document.createElement('div');
+        catDiv.className = 'wp-category';
+
+        var header = document.createElement('div');
+        header.className = 'wp-cat-header';
+        header.innerHTML = '<span class="wp-cat-arrow collapsed">\u25C0</span>'
+          + '<span class="wp-cat-title">' + cat.icon + ' ' + cat.label + '</span>'
+          + '<span class="wp-cat-count">' + cat.params.length + '项</span>';
+
+        // 创建表单默认全部折叠
+        var body = document.createElement('div');
+        body.className = 'wp-cat-body collapsed';
+
+        cat.params.forEach(function(p) {
+          var paramDiv = document.createElement('div');
+          paramDiv.className = 'wp-param';
+          paramDiv.innerHTML = '<label>' + p.label + '</label>';
+
+          if (p.type === 'toggle') {
+            var on = (p.value === 'true');
+            paramDiv.innerHTML +=
+              '<div class="wp-toggle" data-key="' + p.key + '" data-world="' + cacheKey + '">'
+              + '<div class="wp-toggle-track ' + (on ? 'on' : '') + ' wp-toggle-click>'
+              + '<div class="wp-toggle-thumb"></div></div></div>';
+          } else {
+            var optsHtml = p.options.map(function(o) {
+              var sel = (o === p.value) ? 'selected' : '';
+              return '<option value="' + o + '" ' + sel + '>' + fmtOpt(o) + '</option>';
+            }).join('');
+            paramDiv.innerHTML += '<select data-key="' + p.key + '" data-world="' + cacheKey + '">' + optsHtml + '</select>';
+          }
+          body.appendChild(paramDiv);
+        });
+
+        header.onclick = function() {
+          var bdy = catDiv.querySelector('.wp-cat-body');
+          var arr = catDiv.querySelector('.wp-cat-arrow');
+          bdy.classList.toggle('collapsed');
+          arr.classList.toggle('collapsed');
+        };
+
+        catDiv.appendChild(header);
+        catDiv.appendChild(body);
+        container.appendChild(catDiv);
+      });
+    })
+    .catch(function(){});
+}
+
+// 收集创建表单的世界生成参数（提交前注入 hidden fields）
+function collectCreateWorldgen() {
+  var groundParams = {};
+  var caveParams = {};
+
+  document.querySelectorAll('#create-ground-gen [data-key]').forEach(function(el) {
+    var key = el.dataset.key;
+    if (el.tagName === 'SELECT') groundParams[key] = el.value;
+  });
+  document.querySelectorAll('#create-ground-gen .wp-toggle').forEach(function(el) {
+    var key = el.dataset.key;
+    var track = el.querySelector('.wp-toggle-track');
+    if (track) groundParams[key] = track.classList.contains('on') ? 'true' : 'false';
+  });
+
+  document.querySelectorAll('#create-cave-gen [data-key]').forEach(function(el) {
+    var key = el.dataset.key;
+    if (el.tagName === 'SELECT') caveParams[key] = el.value;
+  });
+  document.querySelectorAll('#create-cave-gen .wp-toggle').forEach(function(el) {
+    var key = el.dataset.key;
+    var track = el.querySelector('.wp-toggle-track');
+    if (track) caveParams[key] = track.classList.contains('on') ? 'true' : 'false';
+  });
+
+  return { ground: groundParams, cave: caveParams };
+}
+
+// 表单提交前注入世界生成参数
+(function bindCreateFormSubmit() {
+  var form = document.querySelector('#create-form form');
+  if (!form) return;
+  form.addEventListener('submit', function(e) {
+    var wg = collectCreateWorldgen();
+    var gf = document.getElementById('create-worldgen-master');
+    if (!gf) {
+      gf = document.createElement('input');
+      gf.type = 'hidden';
+      gf.id = 'create-worldgen-master';
+      gf.name = 'worldgen_master';
+      form.appendChild(gf);
+    }
+    gf.value = JSON.stringify(wg.ground);
+
+    var cf = document.getElementById('create-worldgen-cave');
+    if (!cf) {
+      cf = document.createElement('input');
+      cf.type = 'hidden';
+      cf.id = 'create-worldgen-cave';
+      cf.name = 'worldgen_cave';
+      form.appendChild(cf);
+    }
+    cf.value = JSON.stringify(wg.cave);
+  });
+})();
 
 // ===== 详情页：地面+洞穴 SSE 日志 =====
 {{if .ShowDetail}}
@@ -289,7 +498,6 @@ function toggleCreateForm() {
   var masterStatusEl = document.getElementById('log-master-status');
   var caveLogEl = document.getElementById('log-cave');
   var caveStatusEl = document.getElementById('log-cave-status');
-  var detailStatusEl = document.getElementById('log-detail-status');
 
   if (masterLogEl) DTSLiveLog.init(masterLogEl, masterStatusEl, {
     source: 'cluster', clusterName: clusterName, world: 'Master', lines: 200
@@ -348,11 +556,33 @@ textarea { resize: vertical; }
 }
 .log-panel-header {
   display: flex; justify-content: space-between; align-items: center;
-  margin-bottom: 4px;
+  margin-bottom: 6px;
   font-size: 0.9rem; font-weight: 600;
+  gap: 8px;
+}
+.log-panel-header .btn-sm {
+  padding: 3px 8px;
+  font-size: 0.75rem;
 }
 @media (max-width: 900px) {
   .log-split { grid-template-columns: 1fr; }
+}
+
+/* 只读显示（世界生成 gen tab） */
+.wp-cat-readonly { opacity: 0.85; }
+.wp-readonly-val {
+  font-size: 0.78rem;
+  padding: 4px 6px;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text-dim);
+  font-weight: 500;
+}
+.btn-disabled {
+  opacity: 0.4;
+  pointer-events: none;
+  cursor: not-allowed !important;
 }
 </style>
 
@@ -367,52 +597,496 @@ textarea { resize: vertical; }
 .connect-value { font-size:0.9rem; font-weight:600; color:var(--info); }
 .connect-url-box { margin-bottom:10px; }
 .connect-url-row { display:flex; gap:8px; margin-top:6px; }
-.connect-join-row { display:flex; align-items:center; gap:12px; margin-top:8px; }
+  .connect-join-row { display:flex; align-items:center; gap:12px; margin-top:8px; }
 
-/* ===== 世界参数可视化 ===== */
-.wp-loader { text-align:center; padding:30px; color:var(--text-dim); }
+  /* 连接方法卡片 */
+  .connect-method {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 10px 14px;
+    margin-top: 10px;
+    background: rgba(0,0,0,0.15);
+  }
+  .connect-method-header {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .connect-method-title {
+    font-size: 0.88rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+  .connect-method-hint {
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .connect-code-box {
+    display: flex;
+    gap: 8px;
+    align-items: stretch;
+  }
+  .connect-code {
+    flex: 1;
+    background: #1e1e1e;
+    color: #6ee7b7;
+    border-radius: 6px;
+    padding: 8px 12px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    margin: 0;
+    white-space: pre-wrap;
+    word-break: break-all;
+    line-height: 1.5;
+  }
+  .btn-copy-code {
+    align-self: center;
+    padding: 6px 14px;
+    font-size: 0.82rem;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    cursor: pointer;
+    white-space: nowrap;
+  }
+  .btn-copy-code:hover {
+    background: var(--accent-dim);
+    border-color: var(--accent);
+  }
+  .connect-code-note {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    margin: 4px 0 0 0;
+  }
+  .connect-code-display {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    color: var(--text);
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.85rem;
+    padding: 8px 12px;
+    flex: 1;
+    white-space: pre-wrap;
+    word-break: break-all;
+    min-height: 36px;
+}
+.connect-code-label {
+    font-size: 0.72rem;
+    color: var(--text-dim);
+    white-space: nowrap;
+    align-self: center;
+    padding-right: 4px;
+}
+.connect-code-note code {
+    background: var(--surface2);
+    border-radius: 3px;
+    padding: 1px 5px;
+    font-family: 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.72rem;
+    color: var(--info);
+    margin-right: 4px;
+  }
+
+/* ===== 世界参数可视化（双 Tab）===== */
+.wp-loader { text-align:center; padding:20px; color:var(--text-dim); font-size:0.9rem; }
+
+/* Tab 切换栏 */
+.wp-tab-bar { display:flex; gap:6px; margin:8px 0; }
+.wp-tab-btn {
+  padding:6px 14px; border:1px solid var(--border); border-radius:var(--radius);
+  background:var(--surface2); color:var(--text-dim); cursor:pointer;
+  font-size:0.85rem; transition: all .15s; font-weight:500;
+}
+.wp-tab-btn:hover { color:var(--text); background:var(--border); }
+.wp-tab-btn.active { background:var(--accent-dim); border-color:var(--accent); color:#fff; font-weight:600; }
+
+/* 分类卡片 */
 .wp-category {
   border:1px solid var(--border); border-radius:var(--radius);
   margin-bottom:8px; overflow:hidden;
 }
 .wp-cat-header {
-  display:flex; align-items:center; gap:8px; padding:10px 14px;
+  display:flex; align-items:center; gap:8px; padding:8px 12px;
   background:var(--surface2); cursor:pointer;
   user-select:none; transition: background 0.15s;
 }
 .wp-cat-header:hover { background:rgba(255,255,255,0.06); }
-.wp-cat-arrow { font-size:0.8rem; transition: transform 0.2s; }
+.wp-cat-arrow { font-size:0.7rem; transition: transform 0.2s; color:var(--text-dim); }
 .wp-cat-arrow.collapsed { transform: rotate(-90deg); }
-.wp-cat-title { font-size:0.9rem; font-weight:600; }
+.wp-cat-title { font-size:0.88rem; font-weight:600; flex:1; }
+.wp-cat-count { font-size:0.75rem; color:var(--text-dim); }
 .wp-cat-body {
-  display:grid; grid-template-columns:repeat(auto-fill,minmax(240px,1fr));
-  gap:8px; padding:10px 14px; background:rgba(0,0,0,0.1);
+  display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr));
+  gap:6px; padding:8px 12px; background:rgba(0,0,0,0.15);
 }
 .wp-cat-body.collapsed { display:none; }
-.wp-param { display:flex; flex-direction:column; gap:4px; }
-.wp-param label { font-size:0.78rem; color:var(--text-dim); }
-.wp-param select, .wp-param input[type="number"] {
-  padding:5px 8px; background:var(--surface2);
+.wp-param { display:flex; flex-direction:column; gap:2px; }
+.wp-param label { font-size:0.75rem; color:var(--text-dim); }
+.wp-param select {
+  padding:4px 6px; background:var(--surface2);
   border:1px solid var(--border); border-radius:4px;
-  color:var(--text); font-size:0.8rem;
+  color:var(--text); font-size:0.78rem; cursor:pointer;
 }
-.wp-param select { cursor:pointer; }
-.wp-param input[type="number"] { width:80px; }
-.wp-param .wp-toggle {
-  display:flex; align-items:center; gap:8px;
-  font-size:0.82rem; cursor:pointer;
+.wp-param select:focus { outline:none; border-color:var(--accent); }
+.wp-toggle {
+  display:flex; align-items:center; gap:6px;
+  font-size:0.78rem; cursor:pointer;
 }
 .wp-toggle-track {
-  width:36px; height:20px; border-radius:10px; background:#555;
-  position:relative; transition: background 0.2s;
+  width:34px; height:18px; border-radius:9px; background:#555;
+  position:relative; transition: background 0.2s; flex-shrink:0;
 }
-.wp-toggle-track.on { background:#4a9; }
+.wp-toggle-track.on { background:var(--accent); }
 .wp-toggle-thumb {
-  width:16px; height:16px; border-radius:50%; background:#fff;
+  width:14px; height:14px; border-radius:50%; background:#fff;
   position:absolute; top:2px; left:2px; transition: left 0.2s;
 }
 .wp-toggle-track.on .wp-toggle-thumb { left:18px; }
-.wp-toggle-val { font-size:0.75rem; color:var(--text-dim); }
+.wp-toggle-val { font-size:0.72rem; color:var(--text-dim); }
 </style>
 
+
+
+<script>
+// ===== 服务器直连 =====
+(function loadConnectInfo() {
+  if (!window._clusterId) return;
+  fetch('/api/clusters/' + window._clusterId + '/connect')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.data) return;
+      var data = d.data;
+
+      // 地址
+      var ipEl = document.getElementById('connect-ip');
+      if (ipEl) ipEl.textContent = data.server_ip + ':' + data.server_port;
+
+      // DST 直连链接
+      var urlEl = document.getElementById('dst-url');
+      if (urlEl) urlEl.value = data.dst_url;
+
+      // Steam 按钮
+      var btn = document.getElementById('btn-join-dest');
+      if (btn) { btn.href = data.steam_connect; }
+
+      // 状态
+      var st = document.getElementById('connect-status');
+      if (st) st.textContent = '状态: ' + (data.status === 'running' ? '\u{1F7E2} 运行中' : '\u{1F534} 已停止');
+
+      // c_connect 命令（方法1）— DST 控制台语法: c_connect(ip, port[, password])
+      var ccEl = document.getElementById('c-connect-cmd-display');
+      if (ccEl) {
+        if (data.password) {
+          ccEl.textContent = 'c_connect(' + data.server_ip + ', ' + data.server_port + ', ' + data.password + ')';
+        } else {
+          ccEl.textContent = 'c_connect(' + data.server_ip + ', ' + data.server_port + ')';
+        }
+      }
+
+      // c_connect_dst_url 命令（方法2）
+      var dstCmd = 'c_connect_dst_url(' + data.dst_url + ')';
+
+      // c_connect_dst_url 命令（方法2）
+      var dstCmd = 'c_connect_dst_url(' + data.dst_url + ')';
+      var ccDstEl = document.getElementById('c-connect-dst-url-display');
+      if (ccDstEl) ccDstEl.value = dstCmd;
+
+      // 描述文字
+      var descEl = document.getElementById('connect-desc');
+      if (descEl && data.password) {
+        descEl.textContent = '服务器有密码，控制台命令已自动包含密码';
+      }
+    })
+    .catch(function(){
+      var st = document.getElementById('connect-status');
+      if (st) st.textContent = '加载失败';
+    });
+})();
+
+// 从 input 元素复制 — 跟"复制链接"按钮完全一样的逻辑
+function copyFromInput(elemId) {
+  var el = document.getElementById(elemId);
+  if (!el) return;
+  var text;
+  if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {
+    text = el.value;
+    el.select();
+    el.setSelectionRange(0, 99999);
+  } else {
+    text = el.textContent.trim();
+  }
+  if (!text) return;
+  try {
+    // 动态创建 input 来复制
+    var ta = document.createElement('input');
+    ta.type = 'text';
+    ta.value = text;
+    ta.style.position = 'fixed';
+    ta.style.left = '0';
+    ta.style.top = '0';
+    ta.style.width = '1px';
+    ta.style.height = '1px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    var btn = el.parentElement.querySelector('.btn-copy-code');
+    if (btn) {
+      btn.textContent = '\u2713 已复制';
+      setTimeout(function(){ btn.textContent = '\u{1F4CB} 复制'; }, 1500);
+    }
+  } catch(e) {
+    alert('复制失败，请手动复制: ' + text);
+  }
+}
+
+// 复制 dst:// 链接（同 copyFromInput）
+function copyDstURL() {
+  copyFromInput('dst-url');
+}
+
+// ===== 世界参数可视化（双 Tab: 规则 / 生成）=====
+// CACHE_BUSTER: 1785567176
+var _worldParamsCache = {};  // { worldId: { sections: [...] } }
+var _currentTabs = {};       // { worldId: 'rules' | 'gen' }
+
+// 中文选项
+function fmtOpt(val) {
+  var m = {
+    'default':'默认','none':'无','low':'低','medium':'中','high':'高',
+    'very_high':'非常高','always':'总是','never':'从不',
+    'more':'更多','more_more':'很多','less':'更少','less_less':'很少',
+    'twice_as_much':'双倍','half_as_much':'减半',
+    'very_short':'很短','short':'短','long':'长','very_long':'很长','maximum':'最长',
+    'spring':'春季','summer':'夏季','autumn':'秋季','winter':'冬季',
+    'forest':'地面','caves':'洞穴','fixed':'固定','random':'随机',
+    'true':'是','false':'否'
+  };
+  return m[val] || val;
+}
+
+// 加载世界参数
+function loadWorldParams(worldId) {
+  if (!window._clusterId) return;
+  var statusEl = document.getElementById('wp-status-' + worldId);
+  statusEl.textContent = '加载参数中...';
+  _currentTabs[worldId] = 'rules';
+  fetch('/api/clusters/' + window._clusterId + '/worlds/' + worldId + '/params')
+    .then(function(r){ return r.json(); })
+    .then(function(d){
+      if (!d || !d.data || !d.data.sections) return;
+      _worldParamsCache[worldId] = d.data.sections;
+      renderWorldParams(worldId, d.data.sections, 'rules');
+    })
+    .catch(function(e){
+      if (statusEl) statusEl.textContent = '加载失败';
+    });
+}
+
+// 渲染指定板块
+function renderWorldParams(worldId, sections, activeTab) {
+  var container = document.getElementById('wp-content-' + worldId);
+  var statusEl = document.getElementById('wp-status-' + worldId);
+  if (!container) return;
+
+  var activeSection = null;
+  for (var i = 0; i < sections.length; i++) {
+    if (sections[i].key === activeTab) {
+      activeSection = sections[i];
+      break;
+    }
+  }
+  if (!activeSection) return;
+
+  var totalParams = 0;
+  for (var ci = 0; ci < activeSection.categories.length; ci++) {
+    totalParams += activeSection.categories[ci].params.length;
+  }
+
+  var isReadonly = (activeTab === 'gen');
+
+  container.innerHTML = '';
+  activeSection.categories.forEach(function(cat) {
+    var catDiv = document.createElement('div');
+    catDiv.className = 'wp-category' + (isReadonly ? ' wp-cat-readonly' : '');
+
+    var header = document.createElement('div');
+    header.className = 'wp-cat-header';
+    header.innerHTML = '<span class="wp-cat-arrow">\u25BC</span>'
+      + '<span class="wp-cat-title">' + cat.icon + ' ' + cat.label + '</span>'
+      + '<span class="wp-cat-count">' + cat.params.length + '项</span>';
+    header.onclick = function() {
+      var body = catDiv.querySelector('.wp-cat-body');
+      var arrow = catDiv.querySelector('.wp-cat-arrow');
+      body.classList.toggle('collapsed');
+      arrow.classList.toggle('collapsed');
+    };
+
+    var body = document.createElement('div');
+    body.className = 'wp-cat-body' + (isReadonly ? ' wp-body-readonly' : '');
+    cat.params.forEach(function(p) {
+      var paramDiv = document.createElement('div');
+      paramDiv.className = 'wp-param';
+      paramDiv.innerHTML = '<label>' + p.label + '</label>';
+
+      if (isReadonly) {
+        paramDiv.innerHTML += '<span class="wp-readonly-val">' + fmtOpt(p.value) + '</span>';
+      } else if (p.type === 'toggle') {
+        var on = (p.value === 'true');
+        paramDiv.innerHTML +=
+          '<div class="wp-toggle" data-key="' + p.key + '">'
+          + '<div class="wp-toggle-track ' + (on ? 'on' : '') + ' wp-toggle-click>'
+          + '<div class="wp-toggle-thumb"></div></div>'
+          + '<span class="wp-toggle-val">' + (on ? '\u5f00' : '\u5173') + '</span></div>';
+      } else {
+        var optsHtml = p.options.map(function(o) {
+          var sel = (o === p.value) ? 'selected' : '';
+          return '<option value="' + o + '" ' + sel + '>' + fmtOpt(o) + '</option>';
+        }).join('');
+        paramDiv.innerHTML += '<select data-key="' + p.key + '">' + optsHtml + '</select>';
+      }
+      body.appendChild(paramDiv);
+    });
+
+    catDiv.appendChild(header);
+    catDiv.appendChild(body);
+    container.appendChild(catDiv);
+  });
+
+  if (statusEl) {
+    if (isReadonly) {
+      statusEl.textContent = '\u{1F4C4} 世界生成参数（创建时设定，仅展示）';
+    } else {
+      statusEl.textContent = '\u2713 已加载 ' + totalParams + ' 项参数';
+    }
+  }
+}
+
+
+// Tab 切换
+function switchWorldTab(worldId, tab) {
+  if (!_worldParamsCache[worldId]) return;
+  _currentTabs[worldId] = tab;
+  var isGen = (tab === 'gen');
+  // 更新按钮状态
+  var card = document.querySelector('.world-params-card[data-world-id="' + worldId + '"]');
+  if (card) {
+    card.querySelectorAll('.wp-tab-btn').forEach(function(btn) {
+      btn.classList.toggle('active', btn.dataset.tab === tab);
+    });
+    // gen tab 不可编辑 — 禁用保存/恢复按钮
+    var saveBtn = document.getElementById('wp-save-' + worldId);
+    if (saveBtn) saveBtn.classList.toggle('btn-disabled', isGen);
+  }
+  renderWorldParams(worldId, _worldParamsCache[worldId], tab);
+}
+
+// 收集参数并保存
+function collectWorldParams(worldId) {
+  var container = document.getElementById('wp-content-' + worldId);
+  var params = {};
+  if (!container) return params;
+  container.querySelectorAll('[data-key]').forEach(function(el) {
+    var key = el.dataset.key;
+    if (el.tagName === 'SELECT') {
+      params[key] = el.value;
+    }
+  });
+  container.querySelectorAll('.wp-toggle').forEach(function(el) {
+    var key = el.dataset.key;
+    var track = el.querySelector('.wp-toggle-track');
+    if (track) params[key] = track.classList.contains('on') ? 'true' : 'false';
+  });
+  return params;
+}
+
+function saveWorldParams(worldId) {
+  if (!window._clusterId) return;
+  var params = collectWorldParams(worldId);
+  var statusEl = document.getElementById('wp-status-' + worldId);
+  statusEl.textContent = '\u23F3 保存中...';
+  fetch('/api/clusters/' + window._clusterId + '/worlds/' + worldId + '/params', {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ world_id: worldId, params: params })
+  })
+  .then(function(r){ return r.json(); })
+  .then(function(d){
+    if (d.code === 200) {
+      statusEl.textContent = '\u2705 已保存 (' + Object.keys(params).length + ' 项)';
+    } else {
+      statusEl.textContent = '\u274C ' + (d.message || '保存失败');
+    }
+  })
+  .catch(function(){
+    statusEl.textContent = '\u274C 网络错误';
+  });
+}
+
+function resetWorldParams(worldId, worldName) {
+  if (!confirm('恢复 ' + (worldName === 'Master' ? '地面' : '洞穴') + ' 默认参数？')) return;
+  loadWorldParams(worldId);
+  var statusEl = document.getElementById('wp-status-' + worldId);
+  if (statusEl) statusEl.textContent = '\u2705 已恢复默认';
+}
+
+// 委托绑定：Toggle 开关点击
+(function bindToggleSwitches() {
+  document.addEventListener("click", function(e) {
+    var track = e.target.closest(".wp-toggle-click");
+    if (!track) return;
+    track.classList.toggle("on");
+    var val = track.parentElement.querySelector(".wp-toggle-val");
+    if (val) {
+      val.textContent = track.classList.contains("on") ? "开" : "关";
+    }
+  });
+})();
+
+// 绑定 Tab 按钮点击
+(function bindWorldTabs() {
+  document.querySelectorAll('.wp-tab-btn').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      switchWorldTab(btn.dataset.worldId, btn.dataset.tab);
+    });
+  });
+})();
+
+// 初始化 — 等待 DOM 就绪后再执行
+(function initWorldParams() {
+  function doInit() {
+    if (!window._clusterId) {
+      console.error('[WP] _clusterId is not set');
+      return;
+    }
+    document.querySelectorAll('.world-params-card').forEach(function(card) {
+      var worldId = card.dataset.worldId;
+      if (worldId) {
+        console.log('[WP] loading world', worldId);
+        loadWorldParams(worldId);
+      }
+    });
+  }
+  if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    doInit();
+  } else {
+    document.addEventListener('DOMContentLoaded', doInit);
+  }
+})();
+</script>
+
+<script src="/static/js/side-nav.js">
+// 统一复制按钮事件绑定（避免 onclick 字符串转义问题）
+(function bindCopyButtons() {
+  document.addEventListener('click', function(e) {
+    var btn = e.target.closest('.copy-btn');
+    if (!btn) return;
+    var targetId = btn.getAttribute('data-target');
+    if (targetId) copyFromInput(targetId);
+  });
+})();
+</script>
 </body></html>
