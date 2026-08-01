@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css"></head>
+<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/logs_v7.js?v=8"></script>
+</head>
 <body>
 <nav class="navbar">
   <div class="nav-brand">🌲 DTS Panel</div>
@@ -9,161 +11,185 @@
     <a href="/dashboard" class="{{pageActive .PageID "dashboard"}}">面板</a>
     <a href="/system" class="{{pageActive .PageID "system"}}">系统</a>
     <a href="/install" class="{{pageActive .PageID "install"}}">安装</a>
-    <a href="/instances" class="{{pageActive .PageID "instances"}}">实例</a>
-    <a href="/rooms" class="{{pageActive .PageID "rooms"}}">房间</a>
+    <a href="/clusters" class="{{pageActive .PageID "clusters"}}">房间</a>
     <a href="/mods" class="{{pageActive .PageID "mods"}}">模组</a>
   </div>
 </nav>
 <main class="container">
   {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
 
-  <h1>游戏安装</h1>
-
-  <div class="step-card">
-    <h2>步骤 1: 安装 SteamCMD</h2>
-    <p>SteamCMD 用于从 Steam 下载游戏，支持 ARM64 架构。</p>
-    <form method="POST" action="/install/steamcmd">
-      <button class="btn btn-primary" type="submit">安装 SteamCMD</button>
-    </form>
+  <div class="page-header">
+    <h1>游戏安装</h1>
   </div>
 
-  <div class="step-card">
-    <h2>步骤 2: 安装 DST Dedicated Server</h2>
-    <p>通过 SteamCMD 下载 Don't Starve Together (AppID: 108730)，约 2GB，需 5-15 分钟。</p>
-    <p class="dim">ARM64 架构会自动安装 Box64，无需手动操作。</p>
-    <form id="install-form" method="POST" action="/install/game">
-      <button class="btn btn-primary" type="submit" onclick="startWatching(); return confirm('确认下载 DST Dedicated Server？约 2GB，需要 5-15 分钟。');">安装 DST Server</button>
-    </form>
-  </div>
-
-  <div class="step-card">
-    <h2>安装状态</h2>
-    <div class="status-grid" id="install-status">
-      <p class="dim">加载中...</p>
+  {{/* ===== 安装实时日志（顶部） ===== */}}
+  <div class="step-card" id="log-card" style="margin-bottom:20px">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>📜 安装日志 <span id="install-stage" class="dim" style="font-size:0.85rem;font-weight:400">(空闲)</span></h2>
+      <span class="dim" id="log-status">连接中...</span>
     </div>
-    <button class="btn" onclick="checkStatus()">刷新状态</button>
+    <pre id="log-install" class="terminal-output" style="max-height:380px;overflow-y:auto">等待安装...</pre>
   </div>
 
-  <div class="step-card">
-    <h2>实时日志</h2>
-    <pre id="install-log" class="terminal-output">等待安装操作...</pre>
-  </div>
+  <div class="layout-grid">
+    <div class="layout-left">
 
-  <div class="step-card" id="cdn-card">
-    <h2>⚡ Steam CDN 加速</h2>
-    <p>国内网络下载 Steam 内容较慢，添加 CDN hosts 映射可提速。</p>
-    <div id="cdn-status" class="dim">检查中...</div>
-    <div id="cdn-actions">
-      <form method="POST" action="/install/cdn" id="cdn-add-form">
-        <button class="btn btn-primary" type="submit">添加 CDN 映射</button>
-      </form>
-      <form method="POST" action="/install/cdn-remove" id="cdn-remove-form" style="display:none">
-        <button class="btn" type="submit" onclick="return confirm('确认移除 Steam CDN hosts 映射？')">移除 CDN 映射</button>
-      </form>
+      <div class="step-card">
+        <h2>步骤 1: 安装 SteamCMD</h2>
+        <p>SteamCMD 用于从 Steam 下载游戏，支持 ARM64 架构。</p>
+        <button class="btn btn-primary" id="btn-steamcmd" onclick="doInstallSteamCMD()">安装 SteamCMD</button>
+      </div>
+
+      <div class="step-card">
+        <h2>步骤 2: 安装 DST Dedicated Server</h2>
+        <p>通过 SteamCMD 下载 Don't Starve Together (AppID: 343050)，约 2GB，需 5-15 分钟。</p>
+        <p class="dim">ARM64 架构会自动安装 Box64。</p>
+        <button class="btn btn-primary" id="btn-game" onclick="doInstallGame()">安装 DST Server</button>
+      </div>
+
+      <div class="step-card" id="box-card" style="display:none">
+        <h2>🔧 Box64 / Box86</h2>
+        <p>ARM64 上运行 x86_64 二进制需要 Box64。</p>
+        <button class="btn btn-primary" id="btn-box" onclick="doInstallBox()">安装 Box64 + Box86</button>
+      </div>
+
     </div>
-    <pre id="cdn-entries" class="terminal-output" style="height:auto;margin-top:8px;display:none"></pre>
-  </div>
 
-  <div class="notice-box">
-    <p>📋 安装说明</p>
-    <ul>
-      <li>SteamCMD 需要网络连接才能从 Steam 下载</li>
-      <li>ARM64 架构自动安装 Box64 来运行 SteamCMD</li>
-      <li>安装过程较长（5-15 分钟），请等待完成</li>
-      <li>安装完成后才能在「实例」中启动游戏服务器</li>
-      <li>游戏目录: <code>{{.GameDir}}</code></li>
-    </ul>
+    <div class="layout-right">
+
+      <div class="step-card">
+        <h2>安装状态</h2>
+        <div id="install-status" class="status-grid"></div>
+        <button class="btn" onclick="checkStatus()">刷新状态</button>
+      </div>
+
+      <div class="step-card" id="cdn-card">
+        <h2>⚡ Steam CDN 加速</h2>
+        <p>国内网络下载 Steam 内容较慢，添加 CDN hosts 映射可提速。</p>
+        <div id="cdn-status" class="dim">检查中...</div>
+        <div id="cdn-actions" style="display:flex;gap:8px;margin-top:8px">
+          <button class="btn btn-primary" onclick="doInstallCDN()">添加 CDN 映射</button>
+          <button class="btn" id="btn-cdn-remove" style="display:none" onclick="doRemoveCDN()">移除 CDN 映射</button>
+        </div>
+      </div>
+
+      <div class="notice-box">
+        <p>📋 安装说明</p>
+        <ul>
+          <li>1️⃣ 先安装 SteamCMD（约 20MB）</li>
+          <li>2️⃣ 再安装 DST Dedicated Server（约 2GB）</li>
+          <li>3️⃣ ARM64 架构需要 Box64 来运行 x86_64 的 SteamCMD/DST</li>
+          <li>4️⃣ CDN 加速可大幅提高下载速度（国内推荐）</li>
+        </ul>
+      </div>
+
+    </div>
   </div>
 </main>
 <script>
-let watchTimer = null;
-let lastLogCount = 0;
+// ===== 安装实时日志 =====
+(function() {
+  var logEl = document.getElementById('log-install');
+  var statusEl = document.getElementById('log-status');
+  var stageEl = document.getElementById('install-stage');
+  if (!logEl) return;
 
-function startWatching() {
-  lastLogCount = 0;
-  document.getElementById('install-log').textContent = '[等待安装...]';
-  if (watchTimer) clearInterval(watchTimer);
-  watchTimer = setInterval(function() {
-    fetch('/api/system/status')
-      .then(function(r) { return r.json(); })
-      .then(function(resp) { var d = resp.data; 
-        if (d.logs && d.logs.length > 0) {
-          const logEl = document.getElementById('install-log');
-          if (d.logs.length > lastLogCount) {
-            const newLines = d.logs.slice(lastLogCount);
-            logEl.textContent += newLines.join('\n') + '\n';
-            logEl.scrollTop = logEl.scrollHeight;
-            lastLogCount = d.logs.length;
-          }
-          if (d.logs[d.logs.length - 1] && (d.logs[d.logs.length - 1].includes('完成') || d.logs[d.logs.length - 1].includes('失败'))) {
-            clearInterval(watchTimer);
-            watchTimer = null;
-          }
-        }
-        // 同时更新状态
-        const parts = [];
-        parts.push('<span class="status-'+(d.steamcmd?'ok':'missing')+'">'+(d.steamcmd?'✓':'✗')+' SteamCMD</span>');
-        parts.push('<span class="status-'+(d.game?'ok':'missing')+'">'+(d.game?'✓':'✗')+' DST Dedicated Server</span>');
-        if (d.is_arm64) {
-          parts.push('<span class="status-'+(d.box86?'ok':'missing')+'">'+(d.box86?'✓':'✗')+' Box86</span>');
-          parts.push('<span class="status-'+(d.box64?'ok':'missing')+'">'+(d.box64?'✓':'✗')+' Box64</span>');
-        }
-        document.getElementById('install-status').innerHTML = parts.join('  ');
-      })
-      .catch(function() {});
-  }, 1000);
+  DTSLiveLog.init(logEl, statusEl, {
+    source: 'install',
+    initialText: '等待安装...\n'
+  });
+})();
+
+function doInstallSteamCMD() {
+  var btn = document.getElementById('btn-steamcmd');
+  btn.disabled = true;
+  btn.textContent = '安装中...';
+  fetch('/install/steamcmd', {method: 'POST'}).then(function() {
+    btn.disabled = false;
+    btn.textContent = '安装 SteamCMD';
+    checkStatus();
+  });
 }
 
-async function checkStatus() {
-  try {
-    const resp = await (await fetch('/api/system/status')).json(); const d = resp.data;
-    const parts = [];
-    parts.push('<span class="status-'+(d.steamcmd?'ok':'missing')+'">'+(d.steamcmd?'✓':'✗')+' SteamCMD</span>');
-    parts.push('<span class="status-'+(d.game?'ok':'missing')+'">'+(d.game?'✓':'✗')+' DST Dedicated Server</span>');
-    if (d.is_arm64) {
-      parts.push('<span class="status-'+(d.box86?'ok':'missing')+'">'+(d.box86?'✓':'✗')+' Box86</span>');
-      parts.push('<span class="status-'+(d.box64?'ok':'missing')+'">'+(d.box64?'✓':'✗')+' Box64</span>');
-    }
-    document.getElementById('install-status').innerHTML = parts.join('  ');
-    if (d.logs && d.logs.length > 0) {
-      document.getElementById('install-log').textContent = d.logs.join('\n');
-    }
-  } catch (e) {
-    document.getElementById('install-status').innerHTML = '<span class="dim">加载失败</span>';
-  }
+function doInstallGame() {
+  if (!confirm('确认下载 DST Dedicated Server？约 2GB，需要 5-15 分钟。')) return;
+  var btn = document.getElementById('btn-game');
+  btn.disabled = true;
+  btn.textContent = '下载中...';
+  fetch('/install/game', {method: 'POST'}).then(function() {
+    btn.disabled = false;
+    btn.textContent = '安装 DST Server';
+    checkStatus();
+  });
 }
 
-// CDN 状态检测
-async function checkCDN() {
-  try {
-    const resp = await (await fetch('/api/system/status')).json(); const d = resp.data;
-    const statusEl = document.getElementById('cdn-status');
-    const addForm = document.getElementById('cdn-add-form');
-    const removeForm = document.getElementById('cdn-remove-form');
-    const entriesEl = document.getElementById('cdn-entries');
-    if (d.cdn_hosts) {
-      statusEl.textContent = '✓ Steam CDN hosts 已添加';
-      statusEl.className = 'status-ok';
-      addForm.style.display = 'none';
-      removeForm.style.display = '';
-      entriesEl.style.display = '';
-      entriesEl.textContent = "steamcontent-dal-01.cdn.steampipe.steamcontent.com → 103.46.209.92\nsteamcontent-atl-01.cdn.steampipe.steamcontent.com → 103.46.209.92\nsteamcontent-fra-01.cdn.steampipe.steamcontent.com → 103.46.209.92\nsteamcontent-sin-01.cdn.steampipe.steamcontent.com → 103.46.209.92";
+function doInstallCDN() {
+  fetch('/install/cdn', {method: 'POST'}).then(function() { checkCDN(); });
+}
+
+function doRemoveCDN() {
+  if (!confirm('确认移除 Steam CDN hosts？')) return;
+  fetch('/install/cdn', {method: 'DELETE'}).then(function() { checkCDN(); });
+}
+
+function doInstallBox() {
+  var btn = document.getElementById('btn-box');
+  btn.disabled = true;
+  btn.textContent = '安装中...';
+  fetch('/install/box', {method: 'POST'}).then(function() {
+    btn.disabled = false;
+    btn.textContent = '安装 Box64 + Box86';
+    checkStatus();
+  });
+}
+
+function checkStatus() {
+  fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(resp) {
+    var d = resp.data;
+    var html = '';
+    if (d) {
+      html += '<div class="status-item"><span>' + (d.steamcmd ? '✓' : '✗') + '</span> SteamCMD</div>';
+      html += '<div class="status-item"><span>' + (d.game ? '✓' : '✗') + '</span> DST Dedicated Server</div>';
+      html += '<div class="status-item"><span>' + (d.box64 ? '✓' : '✗') + '</span> Box64</div>';
+      if (d.is_arm64) {
+        html += '<div class="status-item"><span>' + (d.box86 ? '✓' : '✗') + '</span> Box86</div>';
+      }
+      if (d.in_progress) {
+        html += '<div class="status-item"><span style="color:var(--warning)">●</span> 安装进行中</div>';
+      }
+      if (d.cdn_hosts) {
+        html += '<div class="status-item"><span>✓</span> CDN 加速</div>';
+      }
+    }
+    document.getElementById('install-status').innerHTML = html;
+    if (d && d.is_arm64) {
+      document.getElementById('box-card').style.display = '';
+    }
+    if (d && d.cdn_hosts) {
+      document.getElementById('cdn-status').textContent = '✓ 已添加';
+      document.getElementById('btn-cdn-remove').style.display = '';
+    }
+    if (d && d.in_progress) {
+      document.getElementById('install-stage').textContent = '(安装中)';
+      document.getElementById('install-stage').style.color = 'var(--warning)';
     } else {
-      statusEl.textContent = '✗ Steam CDN hosts 未添加';
-      statusEl.className = 'status-missing';
-      addForm.style.display = '';
-      removeForm.style.display = 'none';
-      entriesEl.style.display = 'none';
+      document.getElementById('install-stage').textContent = '(空闲)';
+      document.getElementById('install-stage').style.color = 'var(--text-dim)';
     }
-  } catch (e) {
-    document.getElementById('cdn-status').textContent = '加载失败';
-  }
+  });
 }
 
-window.addEventListener('DOMContentLoaded', function() {
-  checkStatus();
-  checkCDN();
-});
+function checkCDN() {
+  fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(resp) {
+    var d = resp.data;
+    if (d && d.cdn_hosts) {
+      document.getElementById('cdn-status').textContent = '✓ 已添加';
+      document.getElementById('btn-cdn-remove').style.display = '';
+    }
+  });
+}
+
+checkStatus();
 </script>
 <style>
 .terminal-output {
@@ -172,7 +198,6 @@ window.addEventListener('DOMContentLoaded', function() {
   border-radius: 6px;
   padding: 12px 16px;
   margin: 12px 0;
-  height: 350px;
   overflow-y: auto;
   font-family: 'SF Mono', Menlo, Consolas, monospace;
   font-size: 12px;
@@ -180,8 +205,9 @@ window.addEventListener('DOMContentLoaded', function() {
   white-space: pre-wrap;
   word-break: break-all;
 }
-#cdn-actions { display: flex; gap: 8px; margin: 8px 0; }
-#cdn-status { font-weight: bold; }
-#cdn-entries { font-size: 11px; color: #6a9955; }
+.status-item { padding: 6px 0; }
+.status-grid { display: flex; flex-direction: column; gap: 4px; }
+.layout-grid { display: grid; grid-template-columns: 1.2fr 1fr; gap: 16px; }
+@media (max-width: 800px) { .layout-grid { grid-template-columns: 1fr; } }
 </style>
 </body></html>

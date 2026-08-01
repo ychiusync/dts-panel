@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css"></head>
+<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/logs_v7.js?v=8"></script>
+</head>
 <body>
 <nav class="navbar">
   <div class="nav-brand">🌲 DTS Panel</div>
@@ -9,62 +11,80 @@
     <a href="/dashboard" class="{{pageActive .PageID "dashboard"}}">面板</a>
     <a href="/system" class="{{pageActive .PageID "system"}}">系统</a>
     <a href="/install" class="{{pageActive .PageID "install"}}">安装</a>
-    <a href="/instances" class="{{pageActive .PageID "instances"}}">实例</a>
-    <a href="/rooms" class="{{pageActive .PageID "rooms"}}">房间</a>
+    <a href="/clusters" class="{{pageActive .PageID "clusters"}}">房间</a>
     <a href="/mods" class="{{pageActive .PageID "mods"}}">模组</a>
   </div>
 </nav>
 <main class="container">
-  {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
+  <h1>🌲 DTS 饥荒服务器面板</h1>
 
   <section class="stats-grid">
-    <div class="stat-card"><span class="stat-label">总实例</span><span class="stat-value">{{lenVal .Instances}}</span></div>
-    <div class="stat-card"><span class="stat-label">运行中</span><span class="stat-value stat-running">{{runningCount .Instances}}</span></div>
-    <div class="stat-card"><span class="stat-label">已停止</span><span class="stat-value stat-stopped">{{stoppedCount .Instances}}</span></div>
+    <div class="stat-card"><span class="stat-label">🎮 DST 状态</span>
+      <span class="stat-value {{if .GameOK}}stat-running{{else}}stat-stopped{{end}}">{{if .GameOK}}✓ 已安装{{else}}✗ 未安装{{end}}</span></div>
+    <div class="stat-card"><span class="stat-label">📦 SteamCMD</span>
+      <span class="stat-value {{if .SteamCMDOK}}stat-running{{else}}stat-stopped{{end}}">{{if .SteamCMDOK}}✓{{else}}✗{{end}}</span></div>
+    <div class="stat-card"><span class="stat-label">🔧 Box64</span>
+      <span class="stat-value {{if .Box64OK}}stat-running{{else}}stat-stopped{{end}}">{{if .Box64OK}}✓{{else}}✗{{end}}</span></div>
+    <div class="stat-card"><span class="stat-label">⚡ CDN 加速</span>
+      <span class="stat-value {{if .CDNOK}}stat-running{{else}}stat-stopped{{end}}">{{if .CDNOK}}✓{{else}}✗{{end}}</span></div>
   </section>
 
   <div class="page-header">
-    <h2>实例列表</h2>
-    <a href="/instances" class="btn btn-primary" style="text-decoration:none">+ 创建实例</a>
+    <h2>🏠 房间概览</h2>
+    <a href="/clusters" class="btn btn-primary" style="text-decoration:none">+ 创建房间</a>
   </div>
 
   <div class="table-container">
     <table class="data-table">
-      <thead><tr><th>名称</th><th>状态</th><th>端口</th><th>最大玩家</th><th>操作</th></tr></thead>
+      <thead><tr><th>房间名</th><th>状态</th><th>模式</th><th>玩家</th><th>操作</th></tr></thead>
       <tbody>
-      {{if .Instances}}
-        {{range .Instances}}
+      {{if .Clusters}}
+        {{range .Clusters}}
         <tr>
           <td><strong>{{.Name}}</strong></td>
-          <td><span class="badge badge-{{statusClass .Status}}">{{.Status}}</span></td>
-          <td>{{.MasterPort}} / {{.ClusterPort}}</td>
+          <td><span class="badge {{statusClass .Status}}">{{.Status}}</span></td>
+          <td>{{.GameMode}}</td>
           <td>{{.MaxPlayers}}</td>
           <td>
-            <form method="POST" action="/instances/action" style="display:inline">
-              <input type="hidden" name="id" value="{{.ID}}">
-              <input type="hidden" name="action" value="start">
-              <button class="btn btn-sm" type="submit">启动</button>
+            <form method="POST" action="/clusters/action" style="display:inline">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="detail">
+              <button class="btn btn-sm" type="submit">详情</button>
             </form>
-            <form method="POST" action="/instances/action" style="display:inline">
-              <input type="hidden" name="id" value="{{.ID}}">
-              <input type="hidden" name="action" value="stop">
-              <button class="btn btn-sm" type="submit">停止</button>
+            {{if eq .Status "stopped"}}
+            <form method="POST" action="/clusters/action" style="display:inline">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="start">
+              <button class="btn btn-sm btn-success" type="submit">启动</button>
             </form>
-            <form method="POST" action="/instances/action" style="display:inline">
-              <input type="hidden" name="id" value="{{.ID}}">
-              <input type="hidden" name="action" value="delete">
-              <button class="btn btn-sm btn-danger" type="submit" onclick="return confirm('确认删除 {{.Name}}？')">删除</button>
+            {{else}}
+            <form method="POST" action="/clusters/action" style="display:inline">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="stop">
+              <button class="btn btn-sm btn-danger" type="submit">停止</button>
             </form>
+            {{end}}
           </td>
         </tr>
         {{end}}
       {{else}}
-        <tr><td colspan="5" class="empty-msg">暂无实例，点击上方创建</td></tr>
+        <tr><td colspan="5" class="empty-msg">暂无房间</td></tr>
       {{end}}
       </tbody>
     </table>
   </div>
 
-  <p class="hint">💡 提示: 先通过「安装」安装 DST Dedicated Server，再创建实例。</p>
+  {{/* ===== 面板实时日志 ===== */}}
+  <div class="step-card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>📜 面板日志</h2>
+      <span class="dim" id="log-status">连接中...</span>
+    </div>
+    <pre id="log-panel" class="terminal-output" style="max-height:300px;overflow-y:auto">连接中...</pre>
+  </div>
 </main>
+<script>
+(function() {
+  var logEl = document.getElementById('log-panel');
+  var statusEl = document.getElementById('log-status');
+  if (logEl) DTSLiveLog.init(logEl, statusEl, { source: 'panel', initialText: '连接中...\n' });
+})();
+</script>
 </body></html>

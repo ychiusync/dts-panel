@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css"></head>
+<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/logs_v7.js?v=8"></script>
+</head>
 <body>
 <nav class="navbar">
   <div class="nav-brand">🌲 DTS Panel</div>
@@ -9,28 +11,20 @@
     <a href="/dashboard" class="{{pageActive .PageID "dashboard"}}">面板</a>
     <a href="/system" class="{{pageActive .PageID "system"}}">系统</a>
     <a href="/install" class="{{pageActive .PageID "install"}}">安装</a>
-    <a href="/instances" class="{{pageActive .PageID "instances"}}">实例</a>
-    <a href="/rooms" class="{{pageActive .PageID "rooms"}}">房间</a>
+    <a href="/clusters" class="{{pageActive .PageID "clusters"}}">房间</a>
     <a href="/mods" class="{{pageActive .PageID "mods"}}">模组</a>
   </div>
 </nav>
 <main class="container">
   <h1>系统环境</h1>
 
-  <section class="card-grid">
-    <div class="info-card">
-      <h3>⚙️ 服务器</h3>
-      <p class="big-value" id="sys-arch">加载中...</p>
-      <p class="dim" id="sys-cpu">加载中...</p>
-    </div>
-    <div class="info-card">
-      <h3>🎮 DST 状态</h3>
-      <p id="game-status" class="big-value">加载中...</p>
-    </div>
-    <div class="info-card">
-      <h3>📦 SteamCMD</h3>
-      <p id="steamcmd-status" class="big-value">加载中...</p>
-    </div>
+  <section class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(200px,1fr))">
+    <div class="info-card"><h3>⚙️ 服务器</h3><p class="big-value" id="sys-arch">加载...</p><p class="dim" id="sys-cpu">加载...</p></div>
+    <div class="info-card"><h3>🎮 DST 状态</h3><p id="game-status" class="big-value">加载...</p></div>
+    <div class="info-card"><h3>📦 SteamCMD</h3><p id="steamcmd-status" class="big-value">加载...</p></div>
+    <div class="info-card" id="box64-card"><h3>🔧 Box64</h3><p id="box64-status" class="big-value">加载...</p><p class="dim" style="font-size:11px">ARM64 运行 x64 程序</p></div>
+    <div class="info-card" id="box86-card"><h3>🔧 Box86</h3><p id="box86-status" class="big-value">加载...</p><p class="dim" style="font-size:11px">ARM64 运行 x86 程序(可选)</p></div>
+    <div class="info-card"><h3>⚡ CDN 加速</h3><p id="cdn-status" class="big-value">加载...</p></div>
   </section>
 
   <div class="table-container">
@@ -45,31 +39,142 @@
     <ul>
       <li>Go 二进制为 <code>linux/arm64</code> 编译，直接运行</li>
       <li>SteamCMD 官方 Linux 版本在 ARM64 上兼容</li>
-      <li>需要 <code>libc6</code>、<code>libstdc++6</code>、<code>libglib2.0-0</code> 等依赖</li>
+      <li><strong>Box64</strong>：必需，ARM64 上用 Box64 运行 x86_64 版本的 SteamCMD 和 DST</li>
+      <li><strong>Box86</strong>：可选，仅在运行 32 位 x86 程序时需要，DST 不需要</li>
+      <li>系统依赖：<code>libc6</code>、<code>libstdc++6</code>、<code>libglib2.0-0</code></li>
     </ul>
+  </div>
+
+  <div class="step-card">
+    <h2>⚙️ 全局默认设置</h2>
+    <p class="dim">创建房间时自动使用以下值，可在此统一修改</p>
+    <div class="form-group">
+      <label>默认 Cluster Token（房主密钥）</label>
+      <input type="text" id="settings-token" placeholder="留空则每次自动随机生成" style="width:100%;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:monospace;font-size:0.9rem">
+    </div>
+    <div class="form-group">
+      <label>默认管理员 UID 列表</label>
+      <textarea id="settings-admins" rows="3" style="width:100%;box-sizing:border-box;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:monospace;font-size:0.85rem;padding:10px;resize:vertical" placeholder="每行一个 KU_ 开头的 UID，例: KU_1234567890"></textarea>
+      <p class="dim" style="font-size:0.75rem">创建房间时自动写入 adminlist.txt</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:12px;margin-top:8px">
+      <button type="button" class="btn btn-primary" onclick="saveSettings()">保存</button>
+      <span id="settings-msg" class="dim"></span>
+    </div>
+  </div>
+
+  {{/* ===== 面板实时日志 ===== */}}
+  <div class="step-card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>📜 面板日志</h2>
+      <span class="dim" id="log-status">连接中...</span>
+    </div>
+    <pre id="log-panel" class="terminal-output" style="max-height:280px;overflow-y:auto">连接中...</pre>
   </div>
 </main>
 <script>
-(async () => {
-  try {
-    const d = (await (await fetch('/api/system/status')).json()).data;
+// ===== 系统状态 =====
+(function() {
+  fetch('/api/system/status').then(function(r) { return r.json(); }).then(function(resp) {
+    var d = resp.data;
     document.getElementById('sys-arch').textContent = d.arch + (d.is_arm64 ? ' (ARM64 ✓)' : '');
-    document.getElementById('sys-cpu').textContent = 'CPU: ' + (d.cpu || 'Unknown') + ' | Cores: ' + d.cpu_count;
+    document.getElementById('sys-cpu').textContent = 'CPU: ' + (d.cpu || d.arch) + ' | Cores: ' + d.cpu_count;
     document.getElementById('game-status').textContent = d.game ? '✓ 已安装' : '✗ 未安装';
     document.getElementById('game-status').style.color = d.game ? 'var(--accent)' : 'var(--danger)';
     document.getElementById('steamcmd-status').textContent = d.steamcmd ? '✓ 已安装' : '✗ 未安装';
     document.getElementById('steamcmd-status').style.color = d.steamcmd ? 'var(--accent)' : 'var(--danger)';
-    document.querySelector('#sys-table tbody').innerHTML = `
-      <tr><td>操作系统</td><td>${d.os}</td></tr>
-      <tr><td>架构</td><td>${d.arch}</td></tr>
-      <tr><td>CPU</td><td>${d.cpu}</td></tr>
-      <tr><td>核心数</td><td>${d.cpu_count}</td></tr>
-      <tr><td>数据目录</td><td>${d.data_dir}</td></tr>
-      <tr><td>游戏目录</td><td>${d.game_dir}</td></tr>
-    `;
-  } catch (e) {
-    document.getElementById('sys-arch').textContent = '加载失败: ' + e.message;
-  }
+
+    if (d.is_arm64) {
+      document.getElementById('box64-card').style.display = '';
+      document.getElementById('box64-status').textContent = d.box64 ? '✓ 已安装' : '✗ 未安装';
+      document.getElementById('box64-status').style.color = d.box64 ? 'var(--accent)' : 'var(--warning)';
+      document.getElementById('box86-card').style.display = '';
+      document.getElementById('box86-status').textContent = d.box86 ? '✓ 已安装' : '✗ 未安装';
+      document.getElementById('box86-status').style.color = d.box86 ? 'var(--accent)' : 'var(--warning)';
+    } else {
+      document.getElementById('box64-card').style.display = 'none';
+      document.getElementById('box86-card').style.display = 'none';
+    }
+    document.getElementById('cdn-status').textContent = d.cdn_hosts ? '✓ 已添加' : '✗ 未添加';
+    document.getElementById('cdn-status').style.color = d.cdn_hosts ? 'var(--accent)' : 'var(--warning)';
+
+    var memInfo = '—', memUsed = '—';
+    fetch('/api/system/memory').then(function(r) {
+      if (!r.ok) return;
+      return r.json();
+    }).then(function(mem) {
+      if (mem.total) {
+        var totalMB = mem.total / 1024 / 1024;
+        var usedMB = mem.used / 1024 / 1024;
+        memInfo = (totalMB/1024).toFixed(2) + ' GB';
+        memUsed = usedMB.toFixed(0) + ' / ' + totalMB.toFixed(0) + ' MB';
+      }
+    });
+
+    var rows = '<tr><td>操作系统</td><td>' + d.os + '</td></tr>';
+    rows += '<tr><td>架构</td><td>' + d.arch + '</td></tr>';
+    rows += '<tr><td>CPU</td><td>' + (d.cpu || d.arch) + '</td></tr>';
+    rows += '<tr><td>核心数</td><td>' + d.cpu_count + '</td></tr>';
+    rows += '<tr><td>内存</td><td>' + memInfo + ' (已用 ' + memUsed + ')</td></tr>';
+    rows += '<tr><td>数据目录</td><td><code>' + d.data_dir + '</code></td></tr>';
+    rows += '<tr><td>游戏目录</td><td><code>' + d.game_dir + '</code></td></tr>';
+    document.querySelector('#sys-table tbody').innerHTML = rows;
+  });
+})();
+
+// ===== 全局默认设置 =====
+(function() {
+  fetch('/api/system/settings').then(function(r) { return r.json(); }).then(function(data) {
+    if (data.code === 200) {
+      document.getElementById('settings-token').value = data.data.DefaultClusterToken || '';
+      document.getElementById('settings-admins').value = data.data.DefaultAdminUids || '';
+    }
+  }).catch(function() {});
+})();
+
+function saveSettings() {
+  var token = document.getElementById('settings-token').value.trim();
+  var admins = document.getElementById('settings-admins').value.trim();
+  var msgEl = document.getElementById('settings-msg');
+  fetch('/api/system/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ DefaultClusterToken: token, DefaultAdminUids: admins })
+  }).then(function(r) { return r.json(); }).then(function(d) {
+    if (d.code === 200) {
+      msgEl.textContent = '✓ ' + d.message + '（已写入 config.json）';
+      msgEl.style.color = 'var(--accent)';
+    } else {
+      msgEl.textContent = '✗ ' + d.message;
+      msgEl.style.color = 'var(--danger)';
+    }
+  }).catch(function() {
+    msgEl.textContent = '✗ 请求失败';
+    msgEl.style.color = 'var(--danger)';
+  });
+}
+
+// ===== 面板实时日志 =====
+(function() {
+  var logEl = document.getElementById('log-panel');
+  var statusEl = document.getElementById('log-status');
+  if (!logEl) return;
+  DTSLiveLog.init(logEl, statusEl, { source: 'panel', initialText: '连接中...\n' });
 })();
 </script>
+<style>
+.terminal-output {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 12px 0;
+  overflow-y: auto;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+</style>
 </body></html>

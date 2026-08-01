@@ -1,0 +1,333 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head><meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{.Title}}</title><link rel="stylesheet" href="/static/css/style.css">
+<script src="/static/js/logs_v7.js?v=8"></script>
+</head>
+<body>
+<nav class="navbar">
+  <div class="nav-brand">🌲 DTS Panel</div>
+  <div class="nav-links">
+    <a href="/dashboard" class="{{pageActive .PageID "dashboard"}}">面板</a>
+    <a href="/system" class="{{pageActive .PageID "system"}}">系统</a>
+    <a href="/install" class="{{pageActive .PageID "install"}}">安装</a>
+    <a href="/clusters" class="{{pageActive .PageID "clusters"}}">房间</a>
+    <a href="/mods" class="{{pageActive .PageID "mods"}}">模组</a>
+  </div>
+</nav>
+<main class="container">
+  {{if .FlashMsg}}<div class="flash-msg">{{.FlashMsg}}</div>{{end}}
+
+  {{if .ShowDetail}}
+  {{/* ===== 房间详情页 ===== */}}
+  <div class="page-header">
+    <h1>🌍 {{.Cluster.Name}}</h1>
+    <div>
+      <span class="badge {{statusClass .Cluster.Status}}">{{.Cluster.Status}}</span>
+      <a href="/clusters" class="btn" style="margin-left:12px;text-decoration:none">← 返回</a>
+    </div>
+  </div>
+
+  <section class="card-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr))">
+    <div class="info-card">
+      <h3>📋 集群配置</h3>
+      <dl>
+        <dt>游戏模式</dt><dd>{{.Cluster.GameMode}}</dd>
+        <dt>最大玩家</dt><dd>{{.Cluster.MaxPlayers}}</dd>
+        <dt>语言</dt><dd>{{.Cluster.Language}}</dd>
+        <dt>密码</dt><dd>{{if .Cluster.Password}}✓{{else}}✗{{end}}</dd>
+        <dt>离线</dt><dd>{{if .Cluster.IsOffline}}✓{{else}}✗{{end}}</dd>
+        <dt>自动暂停</dt><dd>{{if .Cluster.PauseEmpty}}✓{{else}}✗{{end}}</dd>
+      </dl>
+    </div>
+
+    <div class="info-card">
+      <h3>🎮 世界状态</h3>
+      <div id="world-statuses">
+      {{range .Worlds}}
+        <div class="world-status-item">
+          <span class="world-name">{{if .IsMaster}}🌳 地面 {{else}}🕳️ 洞穴{{end}}</span>
+          <span class="world-detail">端口: {{.ServerPort}}</span>
+          <span class="badge {{statusClass .Status}}">{{.Status}}</span>
+        </div>
+      {{end}}
+      </div>
+    </div>
+
+    <div class="info-card">
+      <h3>⚡ 操作</h3>
+      <div class="step-actions">
+      {{if eq .Cluster.Status "stopped"}}
+        <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+          <input type="hidden" name="id" value="{{.Cluster.ID}}">
+          <input type="hidden" name="action" value="start">
+          <button class="btn btn-primary" type="submit">▶ 启动</button>
+        </form>
+      {{else}}
+        <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+          <input type="hidden" name="id" value="{{.Cluster.ID}}">
+          <input type="hidden" name="action" value="stop">
+          <button class="btn btn-danger" type="submit">⏹ 停止</button>
+        </form>
+        <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+          <input type="hidden" name="id" value="{{.Cluster.ID}}">
+          <input type="hidden" name="action" value="restart">
+          <button class="btn" type="submit" onclick="return confirm('确认重启？')">🔄 重启</button>
+        </form>
+      {{end}}
+        <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+          <input type="hidden" name="id" value="{{.Cluster.ID}}">
+          <input type="hidden" name="action" value="delete">
+          <button class="btn btn-danger" type="submit" onclick="return confirm('确认删除 {{.Cluster.Name}}？会删除所有存档！')">🗑 删除</button>
+        </form>
+      </div>
+    </div>
+  </section>
+
+  <div class="step-card">
+    <h2>👑 房间管理员</h2>
+    <p class="dim">管理该房间 adminlist.txt，每行一个 KU_ 开头的 UID</p>
+    <form method="POST" action="/clusters/action">
+      <input type="hidden" name="id" value="{{.Cluster.ID}}">
+      <input type="hidden" name="action" value="save_admins">
+      <textarea name="admin_uids" rows="4" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:monospace;font-size:0.85rem;padding:10px">{{range .AdminList}}{{printf "%s\n" .}}{{end}}</textarea>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">保存管理员列表</button>
+      </div>
+    </form>
+  </div>
+
+  {{/* ===== 世界参数设置 ===== */}}
+  {{range .Worlds}}
+  <div class="step-card">
+    <h2>{{if .IsMaster}}🌳 地面 (Master){{else}}🕳️ 洞穴 (Cave){{end}} — 世界参数</h2>
+    <p class="dim">leveldataoverride.lua — 控制季节、昼夜、资源、怪物等</p>
+    <form method="POST" action="/clusters/worlds">
+      <input type="hidden" name="cluster_id" value="{{$.Cluster.ID}}">
+      <input type="hidden" name="world_id" value="{{.ID}}">
+      <input type="hidden" name="action" value="save_level">
+      <textarea name="level_data" rows="14" style="width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:'SF Mono',Menlo,Consolas,monospace;font-size:0.8rem;padding:12px;resize:vertical">{{.LevelData}}</textarea>
+      <div style="display:flex;gap:10px;margin-top:8px">
+        <button class="btn btn-primary" type="submit">保存世界参数</button>
+        <button class="btn" type="button" onclick="loadDefault('{{.Name}}')">恢复默认</button>
+      </div>
+    </form>
+  </div>
+  {{end}}
+
+  {{/* ===== 详情页：地面 + 洞穴 左右分栏日志 ===== */}}
+  <div class="step-card" id="log-detail-card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>📜 游戏日志（地面 + 洞穴）</h2>
+      <div style="display:flex;gap:6px">
+        <span class="dim" id="log-detail-status">连接中...</span>
+      </div>
+    </div>
+    <div class="log-split">
+      <div class="log-panel">
+        <div class="log-panel-header">
+          <span>🌳 地面 (Master)</span>
+          <span class="dim" id="log-master-status">连接中...</span>
+        </div>
+        <pre id="log-master" class="terminal-output" style="max-height:360px;overflow-y:auto">连接中...</pre>
+      </div>
+      <div class="log-panel">
+        <div class="log-panel-header">
+          <span>🕳️ 洞穴 (Cave)</span>
+          <span class="dim" id="log-cave-status">连接中...</span>
+        </div>
+        <pre id="log-cave" class="terminal-output" style="max-height:360px;overflow-y:auto">连接中...</pre>
+      </div>
+    </div>
+  </div>
+
+  <div class="notice-box">
+    <p>📋 使用说明</p>
+    <ul>
+      <li>一个房间 = 一个完整的 DST 服务器集群，默认包含 <strong>地面 (Master)</strong> 和 <strong>洞穴 (Cave)</strong> 两个世界</li>
+      <li>每个世界有独立的 worldgen 参数（季节/昼夜/资源/怪物）和模组配置</li>
+      <li>创建房间后可以在详情页面单独编辑地面和洞穴的 worldgen 参数</li>
+      <li>启动后地面和洞穴会同时运行，玩家通过绚丽之门在地面和洞穴之间传送</li>
+    </ul>
+  </div>
+
+  {{else}}
+  {{/* ===== 房间列表页 ===== */}}
+  <div class="page-header">
+    <h1>🌍 房间管理</h1>
+    <button class="btn btn-primary" id="btn-create-cluster" onclick="toggleCreateForm()">+ 创建房间</button>
+  </div>
+
+  <div class="table-container">
+    <table class="data-table">
+      <thead><tr><th>房间名</th><th>状态</th><th>模式</th><th>玩家</th><th>操作</th></tr></thead>
+      <tbody>
+      {{if .Clusters}}
+        {{range .Clusters}}
+        <tr>
+          <td><strong>{{.Name}}</strong></td>
+          <td><span class="badge {{statusClass .Status}}">{{.Status}}</span></td>
+          <td>{{.GameMode}}</td>
+          <td>{{.MaxPlayers}}</td>
+          <td>
+            <form method="POST" action="/clusters/action" style="display:inline">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="detail">
+              <button class="btn btn-sm" type="submit">详情</button>
+            </form>
+            {{if eq .Status "stopped"}}
+            <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="start">
+              <button class="btn btn-sm btn-success" type="submit">启动</button>
+            </form>
+            {{else}}
+            <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="stop">
+              <button class="btn btn-sm btn-danger" type="submit">停止</button>
+            </form>
+            <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="restart">
+              <button class="btn btn-sm" type="submit" onclick="return confirm('确认重启？')">重启</button>
+            </form>
+            {{end}}
+            <form method="POST" action="/clusters/action" style="display:inline" class="cluster-action-form">
+              <input type="hidden" name="id" value="{{.ID}}"><input type="hidden" name="action" value="delete">
+              <button class="btn btn-sm btn-danger" type="submit" onclick="return confirm('确认删除 {{.Name}}？')">删除</button>
+            </form>
+          </td>
+        </tr>
+        {{end}}
+      {{else}}
+        <tr><td colspan="5" class="empty-msg">暂无房间，点击「创建房间」开始</td></tr>
+      {{end}}
+      </tbody>
+    </table>
+  </div>
+
+  {{/* ===== 创建房间表单（与详情页一致布局，不含启动/停止） ===== */}}
+  <div class="step-card form-card hidden" id="create-form">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
+      <h2 style="margin-bottom:0">🆕 创建房间</h2>
+      <button class="btn btn-sm" onclick="toggleCreateForm()">✕ 关闭</button>
+    </div>
+    <form method="POST" action="/clusters/create">
+      <div class="form-row">
+        <input type="text" name="name" placeholder="房间名称 *" required>
+        <input type="number" name="max_players" value="10" min="1" max="100" placeholder="最大玩家">
+      </div>
+      <div class="form-row">
+        <input type="text" name="password" placeholder="房间密码（可选）">
+        <select name="game_mode" style="padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-size:0.9rem">
+          <option value="endless">无尽模式 (Endless)</option>
+          <option value="survival">生存模式 (Survival)</option>
+        </select>
+      </div>
+      <div class="form-row">
+        <input type="text" name="master_ip" value="127.0.0.1" placeholder="Master IP">
+        <input type="text" name="cluster_token" placeholder="Cluster Token（可选）">
+      </div>
+      <div class="form-row">
+        <textarea name="admin_uids" rows="3" style="flex:1;min-width:200px;padding:8px 12px;background:var(--surface2);border:1px solid var(--border);border-radius:var(--radius);color:var(--text);font-family:monospace;font-size:0.85rem;resize:vertical" placeholder="管理员 UID（每行一个，可选）"></textarea>
+      </div>
+      <label style="display:flex;align-items:center;gap:6px;font-size:0.9rem;margin:8px 0">
+        <input type="checkbox" name="is_offline"> 离线模式（不联网验证）
+      </label>
+      <div class="form-actions">
+        <button class="btn btn-primary" type="submit">创建房间</button>
+        <button class="btn" type="button" onclick="toggleCreateForm()">取消</button>
+      </div>
+    </form>
+  </div>
+
+  {{/* ===== 列表页：面板实时日志 ===== */}}
+  <div class="step-card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h2>📜 面板日志</h2>
+      <span class="dim" id="log-status">连接中...</span>
+    </div>
+    <pre id="log-panel" class="terminal-output" style="max-height:280px;overflow-y:auto">连接中...</pre>
+  </div>
+  {{end}}
+</main>
+
+<script>
+// 创建表单显示/隐藏
+function toggleCreateForm() {
+  var el = document.getElementById('create-form');
+  if (el) el.classList.toggle('hidden');
+}
+
+// ===== 详情页：地面+洞穴 SSE 日志 =====
+{{if .ShowDetail}}
+(function() {
+  var clusterName = "{{.Cluster.Name}}";
+  var masterLogEl = document.getElementById('log-master');
+  var masterStatusEl = document.getElementById('log-master-status');
+  var caveLogEl = document.getElementById('log-cave');
+  var caveStatusEl = document.getElementById('log-cave-status');
+  var detailStatusEl = document.getElementById('log-detail-status');
+
+  if (masterLogEl) DTSLiveLog.init(masterLogEl, masterStatusEl, {
+    source: 'cluster', clusterName: clusterName, world: 'Master', lines: 200
+  });
+  if (caveLogEl) DTSLiveLog.init(caveLogEl, caveStatusEl, {
+    source: 'cluster', clusterName: clusterName, world: 'Cave', lines: 200
+  });
+})();
+{{end}}
+
+// ===== 列表页：面板实时日志 =====
+(function() {
+  var logEl = document.getElementById('log-panel');
+  var statusEl = document.getElementById('log-status');
+  if (logEl) DTSLiveLog.init(logEl, statusEl, { source: 'panel', lines: 100, initialText: '连接中...\n' });
+})();
+
+function loadDefault(worldName) {
+  alert('恢复默认功能开发中');
+}
+</script>
+
+<style>
+.world-status-item {
+  display: flex; align-items: center; gap: 8px; margin-bottom: 8px;
+}
+.world-name { font-weight: 600; min-width: 80px; }
+.world-detail { font-size: 0.8rem; color: var(--text-dim); }
+textarea { resize: vertical; }
+.terminal-output {
+  background: #1e1e1e;
+  color: #d4d4d4;
+  border-radius: 6px;
+  padding: 12px 16px;
+  margin: 8px 0 0 0;
+  overflow-y: auto;
+  font-family: 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+#create-form.hidden { display: none; }
+.form-card { padding: 24px; }
+.form-card h3 { margin-bottom: 12px; color: var(--info); }
+
+/* 左右分栏日志 */
+.log-split {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 8px;
+}
+.log-panel {
+  display: flex; flex-direction: column;
+}
+.log-panel-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 4px;
+  font-size: 0.9rem; font-weight: 600;
+}
+@media (max-width: 900px) {
+  .log-split { grid-template-columns: 1fr; }
+}
+</style>
+</body></html>

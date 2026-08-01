@@ -9,8 +9,7 @@
     <a href="/dashboard" class="{{pageActive .PageID "dashboard"}}">面板</a>
     <a href="/system" class="{{pageActive .PageID "system"}}">系统</a>
     <a href="/install" class="{{pageActive .PageID "install"}}">安装</a>
-    <a href="/instances" class="{{pageActive .PageID "instances"}}">实例</a>
-    <a href="/rooms" class="{{pageActive .PageID "rooms"}}">房间</a>
+    <a href="/clusters" class="{{pageActive .PageID "clusters"}}">房间</a>
     <a href="/mods" class="{{pageActive .PageID "mods"}}">模组</a>
   </div>
 </nav>
@@ -37,7 +36,7 @@
         {{range .Instances}}
         <tr>
           <td><strong>{{.Name}}</strong></td>
-          <td><span class="badge badge-{{statusClass .Status}}">{{.Status}}</span></td>
+          <td><span class="badge {{statusClass .Status}}">{{.Status}}</span></td>
           <td>{{.MasterPort}} / {{.ClusterPort}}</td>
           <td>{{.MaxPlayers}}</td>
           <td>
