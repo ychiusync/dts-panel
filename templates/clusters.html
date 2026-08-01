@@ -788,11 +788,8 @@ textarea { resize: vertical; }
 
       // c_connect_dst_url 命令（方法2）
       var dstCmd = 'c_connect_dst_url(' + data.dst_url + ')';
-
-      // c_connect_dst_url 命令（方法2）
-      var dstCmd = 'c_connect_dst_url(' + data.dst_url + ')';
       var ccDstEl = document.getElementById('c-connect-dst-url-display');
-      if (ccDstEl) ccDstEl.value = dstCmd;
+      if (ccDstEl) ccDstEl.textContent = dstCmd;
 
       // 描述文字
       var descEl = document.getElementById('connect-desc');
@@ -807,7 +804,7 @@ textarea { resize: vertical; }
 })();
 
 // 从 input 元素复制 — 跟"复制链接"按钮完全一样的逻辑
-function copyFromInput(elemId) {
+function copyFromInput(elemId, btn) {
   var el = document.getElementById(elemId);
   if (!el) return;
   var text;
@@ -1078,14 +1075,15 @@ function resetWorldParams(worldId, worldName) {
 })();
 </script>
 
-<script src="/static/js/side-nav.js">
+<script src="/static/js/side-nav.js"></script>
+<script>
 // 统一复制按钮事件绑定（避免 onclick 字符串转义问题）
 (function bindCopyButtons() {
   document.addEventListener('click', function(e) {
     var btn = e.target.closest('.copy-btn');
     if (!btn) return;
     var targetId = btn.getAttribute('data-target');
-    if (targetId) copyFromInput(targetId);
+    if (targetId) copyFromInput(targetId, btn);
   });
 })();
 </script>
